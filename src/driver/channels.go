@@ -6,7 +6,7 @@ const STOP = (0x300+22)
 const BUTTON_COMMAND1 = (0x300+21)
 const BUTTON_COMMAND2 = (0x300+20)
 const BUTTON_COMMAND3 = (0x300+19)
-const BUTTON_COMMAND4 = ( (0x300+18)
+const BUTTON_COMMAND4 = (0x300+18)
 const BUTTON_UP1 = (0x300+17)
 const BUTTON_UP2 = (0x300+16)
 //in port 1

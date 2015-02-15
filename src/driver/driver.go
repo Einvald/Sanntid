@@ -20,7 +20,7 @@ func elevator_init() int {
 
 func main() {
 	elevator_init()
-	
+*/	
 }
-*/
+
 
