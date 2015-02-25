@@ -23,15 +23,20 @@ var button_channel_matrix = [N_FLOORS][N_BUTTONS] int{
 
 
 func D_init() int {
-	fmt.Println("Midlertidig print")
 	if(!Io_init()){
 		return 0
 	}
 	for i := 0; i < N_FLOORS; i++ {
 		if (i != 0){
-			Io_set_bit(LIGHT_DOWN3)
+			D_set_button_lamp(1, i, 0);
 		}
+		if (i != N_FLOORS -1){
+			D_set_button_lamp(0, i, 0); 		
+		}
+		D_set_button_lamp(2, i, 0);
 	}
+	D_set_stop_lamp(0);
+	D_set_door_open_lamp(0)
 	return 1
 
 }
@@ -104,7 +109,27 @@ func D_get_floor_sensor_signal() int {
 			return 3
 		case:
 			return -1
+	}
 }
 
 func D_get_stop_signal() bool{
 	return (Io_read_bit(STOP) != 0)
+}
+
+func D_get_button_signal(button int, floor int) int{
+	if((floor>=0) && (floor<N_FLOORS) && !(buttonType == 0 && floor ==3) && !(buttonType==1 && floor ==0) && buttonType>=0 && buttonType<=2){ //assertions
+		if(Io_read_bit(lamp_channel_matrix[floor][button]){
+			return 1;
+		}
+		else{
+			return 0;
+		}
+	}
+}
+
+
+
+
+
+
+
