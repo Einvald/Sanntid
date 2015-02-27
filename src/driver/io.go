@@ -6,12 +6,10 @@ package driver
 #include "io.h"
 */
 import "C"
-import "fmt"
+
 
 func Io_init() bool {
-	fmt.Println("Hallo")
 	p := int(C.io_init())
-	fmt.Println(p)
 	return bool(p != 0)
 }
 

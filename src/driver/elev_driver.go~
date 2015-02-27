@@ -1,6 +1,7 @@
 package driver
 import (
-	"fmt"
+	//"fmt"
+	"time"
 	)
 // All function which starts with D_ is driver-functions
 
@@ -107,7 +108,7 @@ func D_get_floor_sensor_signal() int {
 			return 2
 		case Io_read_bit(SENSOR_FLOOR4) != 0:
 			return 3
-		case:
+		default:
 			return -1
 	}
 }
@@ -116,15 +117,15 @@ func D_get_stop_signal() bool{
 	return (Io_read_bit(STOP) != 0)
 }
 
-func D_get_button_signal(button int, floor int) int{
+func D_get_button_signal(buttonType int, floor int) int{
 	if((floor>=0) && (floor<N_FLOORS) && !(buttonType == 0 && floor ==3) && !(buttonType==1 && floor ==0) && buttonType>=0 && buttonType<=2){ //assertions
-		if(Io_read_bit(lamp_channel_matrix[floor][button]){
+		if(Io_read_bit(lamp_channel_matrix[floor][buttonType])!= 0) {
 			return 1;
-		}
-		else{
+		}else{
 			return 0;
 		}
 	}
+	return 0;
 }
 
 
