@@ -7,12 +7,13 @@ type DataObject struct {
 }
 
 func main(){
-	//a := []int {}
-	x := DataObject{}
+	a := []int {1,2}
+	a = append(a,5,5)
+	//x := DataObject{}
 	//p := x.masterQueue
-
+	fmt.Println(a)
 	//a := x.newIp
-	fmt.Println(x)
+	
 	//MasterQueue:= [] int {1,2}
 	//b := len(MasterQueue)
 	//fmt.Println(b)
