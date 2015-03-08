@@ -22,7 +22,7 @@ func nextDirection(currentFloor int, currentDirection int) int {
 				}
 			}
 			for i := range queueDown{
-				if (queueDown[i] < currentFloor || queueInElev[i] < currentFloor){
+				if ((queueDown[i] < currentFloor && queueDown[i]>0) || (queueInElev[i] < currentFloor && queueInElev[i]>0) ){
 					return -1;
 				}
 			}
@@ -37,7 +37,7 @@ func nextDirection(currentFloor int, currentDirection int) int {
 			}
 		case -1:
 			for i := range queueDown{
-				if (queueDown[i] < currentFloor || queueInElev[i] < currentFloor){
+				if ((queueDown[i] < currentFloor && queueDown[i]>0) || (queueInElev[i] < currentFloor && queueInElev[i]>0) ){
 					return -1;
 				}
 			}

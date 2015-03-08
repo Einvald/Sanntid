@@ -9,6 +9,8 @@ import(
 
 const N_FLOORS int = 4
 const N_BUTTONS int = 3
+const ON = 1
+const OFF = 0
 
 type buttonOrder struct{
 	floor int;
@@ -21,12 +23,15 @@ func main() {
 	Order_button_signal_channel := make(chan buttonOrder);
 	i := d.Driver_init()
 	d.Driver_set_button_lamp(0, 0, 1);
+	d.Driver_set_motor_direction(-1);
+	elev.AddToQueue(1, 2);
+
 	fmt.Println(i)
 	fmt.Println(elev.STOP)
 	go checkForInput(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
 	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
 	go checkForElevetaorCommands();
-	d.Driver_set_motor_direction(1);
+	
 
 	deadChan := make(chan int);
 	<- deadChan;
@@ -47,7 +52,9 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 			case order:= <- Order_button_signal_channel:
 				
 				elev.AddToQueue(order.floor, order.buttonType)
-				d.Driver_set_button_lamp(order.buttonType, order.floor, 1);
+				d.Driver_set_button_lamp(order.buttonType, order.floor, ON);
+
+				
 			case <- time.After(1* time.Millisecond):
 		}
 	}
@@ -103,6 +110,13 @@ func checkForElevetaorCommands(){
 		case direction := <- elev.SetMotorChan:
 			fmt.Println("Endret motor retning til: ", direction)
 			d.Driver_set_motor_direction(direction);
+		case turnOn := <- elev.SetTimerChan:
+				
+				if turnOn{
+					fmt.Println("Lest fra SetTimerChan")
+					go elev.DoorTimer(); //OBS!!! ER DET GREIT Å KJØRE EGEN TRÅD HER?
+					d.Driver_set_door_open_lamp(1);
+				} else{d.Driver_set_door_open_lamp(0);}
 		case <- time.After(1*time.Millisecond):
 
 		}

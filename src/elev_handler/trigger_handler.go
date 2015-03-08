@@ -32,8 +32,9 @@ var StopButtonLampChan = make(chan int);
 var SetCurrentFloorLampChan = make(chan int);//FloorIndicatorLamp);
 var SetButtonLampChan = make(chan ButtonLamp);
 var SetMotorChan = make(chan int)
-var currentDirection = 1;
-var currentFloor = 0
+var SetTimerChan = make(chan bool, 1)
+var currentDirection = -1;
+var currentFloor = 1
 
 /*func readStopOrderChannel() int{
 	select {
@@ -41,33 +42,32 @@ var currentFloor = 0
 	}
 }
 */
-var currentState State = RUN_UP;
+var currentState State = RUN_DOWN;
 //Må vurdere hvor nåværende state skal være lagret, men tenker at den skal være lagret her, også "last direction" kan være lurt å ha med
 func FloorReached(floor int){
 	fmt.Println("Inside FloorReached with current state: ");
-
-	
+	SetCurrentFloorLampChan <- floor;
+	currentFloor = floor;
 	switch currentState{
 		case RUN_UP:
-			SetCurrentFloorLampChan <- floor;
 			if checkIfFloorInQueue(floor, currentDirection){
 				SetMotorChan <- 0;
-				currentState = DOOR_OPEN
+				currentState = DOOR_OPEN;
+				SetTimerChan <- true;
 
 			}
 					
 		case RUN_DOWN:
-			SetCurrentFloorLampChan <- floor;
 			if checkIfFloorInQueue(floor, currentDirection){
 				SetMotorChan <- 0;
 				currentState = DOOR_OPEN;
+				fmt.Println("setter timer chan");
+				SetTimerChan <- true;
 			} 
 		case DOOR_OPEN:
-			SetCurrentFloorLampChan <- floor;
 		case IDLE:
-			SetCurrentFloorLampChan <- floor; 
 		case STOP:
-			SetCurrentFloorLampChan <- floor; 
+			 
 	}
 }
 
@@ -78,7 +78,18 @@ func TimerOut() {
 		case RUN_DOWN:
 
 		case DOOR_OPEN:
-
+				fmt.Println("Døren er lukket som den skulle")
+				SetTimerChan <- false;
+				currentDirection = nextDirection(currentFloor, currentDirection);
+				SetMotorChan <- currentDirection;
+				switch currentDirection{
+				case 1:
+					currentState = RUN_UP;
+				case 0:
+					currentState = IDLE;
+				case -1: 
+					currentState = RUN_DOWN;
+				}
 		case IDLE:
 		
 
