@@ -10,12 +10,8 @@ import (
 
 
 func main(){
-	network.InitializeElevator()
+	network.ConnectElevator()
 	network.RunElevator()
-
 	
-
-	
-
 
 }

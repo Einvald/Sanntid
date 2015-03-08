@@ -4,18 +4,28 @@ import (
     	"fmt"
     	"net"
     	"os"
+    	"time"
 	)
 
+// Den nyoppstartede heisen får MasterQueue fra Master, og gjør seg selv til Master, Backup eller ingen av delene. Man blir ikke selv lagt til i MasterQueue enda
 
-
-func connectElevator(ipBroadcast string, portMasterQueue string) { //Her settes MasterQueue, isMaster,isBackup og connected
+func InitializeElevator() { 
+	portMasterQueue := "20019"
+	MyIp = getIpAddr()
+	fmt.Println("2her kommer min IP",MyIp)
+	isEmpty := setMasterQueue(portMasterQueue) 
+	if isEmpty{
+		fmt.Println("jeg er Master")
+		IsMaster = true 
+	}
+	fmt.Println("lengden på MasterQueue er",len(MasterQueue))
+	if len(MasterQueue)==1{
+		IsBackup = true
+		fmt.Println("jeg er Backup")
+	}
 	
-	MyIp:= getIpAddr()
-	initializeElevator(ipBroadcast,portMasterQueue) //får køen fra Master, gjør seg selv til eventuell master eller Backup 
 	
 }
-
-
 
 func getIpAddr() string {
 	addrs, err := net.InterfaceAddrs()
@@ -38,12 +48,12 @@ func getIpAddr() string {
 	return streng
 }
 	
-func setMasterQueue(ipBroadcast string,portMasterQueue string) bool{	// må endre navna på portNumber osv i funksjonene nedover
+func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNumber osv i funksjonene nedover
 	bufferToRead := make([] byte, 1024)
-	UDPadr, err:= net.ResolveUDPAddr("udp",ipAddress+":"+portNumber)
+	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue)
 
 	if err != nil {
-                fmt.Println("error resolving UDP address on ", portNumber)
+                fmt.Println("error resolving UDP address on ", portMasterQueue)
                 fmt.Println(err)
                 os.Exit(1)
         }
@@ -51,44 +61,34 @@ func setMasterQueue(ipBroadcast string,portMasterQueue string) bool{	// må endr
     readerSocket ,err := net.ListenUDP("udp",UDPadr)
     
     if err != nil {
-            fmt.Println("error listening on UDP port ", portNumber)
+            fmt.Println("error listening on UDP port ", portMasterQueue)
             fmt.Println(err)
             os.Exit(1)
 	}
-	
-	n,UDPadr, err := readerSocket.ReadFromUDP(bufferToRead)
-    
+	deadline := time.Now().Add(1500*time.Millisecond)
+	readerSocket.SetReadDeadline(deadline)
+	n,UDPadr,err := readerSocket.ReadFromUDP(bufferToRead[0:])
+		
+    readerSocket.Close()
  	if err != nil {
-        fmt.Println("error reading data from connection")
-        fmt.Println(err)
-        os.Exit(1)
+        return true
     }
     
     fmt.Println("got message from ", UDPadr, " with n = ", n)
 
    	if n > 0 {
-       	fmt.Println("printer melding vi leste over UDP",json2struct(bufferToRead[0:n]))  
-        structObject := json2struct(bufferToRead[0:n])
-       
-       	MasterQueue =append(MasterQueue,structObject.masterQueue)
+       	fmt.Println("printer melding vi leste over UDP",json2struct(bufferToRead,n))  
+        structObject := DataObject{} 
+        structObject = json2struct(bufferToRead,n)
+       	MasterQueue = structObject.MasterQueue
        	return false
-       		
-       	} 
-    }else{
-    	return true
-    }
+       		 
+   }
+   readerSocket.Close()
+  	return true
 }
 
-func initializeElevator(ipBroadcast string,portMasterQueue string){
 
-	isEmpty := setMasterQueue(ipBroadcast,portMasterQueue) 
-	if isEmpty{
-		IsMaster = true 
-	}
-	if len(MasterQueue)==1{
-		IsBackup = true
-	}
-}
 
 
 

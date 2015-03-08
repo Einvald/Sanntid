@@ -1,0 +1,19 @@
+
+
+Når jeg får to PC-er med ulike IP må jeg sjekke om funksjonene jeg har laget funker.
+Ting som skal sjekkeS:
+	1. Når en pc kjører og blir master må den andre bli backup og starte å lese ImAlive msg fra master.
+	2.Sjekk også at nyoppstartet pc som blir backup også får intitialisert sin Masterkøliste riktig.
+	3. Prøv med en tredje PC og se om den forstår at den verken er master eller Backup
+
+
+Eventuelle feil:
+
+	1.i update Mastequeue ca. linje 116 har jeg ingen body på case og continue på default, mulig dette ikke kommer til å virke.
+	2. I removeDeadElevators er virker det som om de andre ikke slipper til hvis vi ikke har den lille sleepen, merkelig eller hur?
+
+
+Til neste gang:
+	1. Må også sjekke at Backup lever og eventuelt gjøre andre til Backup
+
+
