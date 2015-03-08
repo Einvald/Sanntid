@@ -20,29 +20,35 @@ func main() {
 	Stop_button_signal_channel := make(chan bool,1);
 	Order_button_signal_channel := make(chan buttonOrder);
 	i := d.Driver_init()
-	//d.Driver_set_button_lamp(0, 0, 1);
+	d.Driver_set_button_lamp(0, 0, 1);
 	fmt.Println(i)
 	fmt.Println(elev.STOP)
 	go checkForInput(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
-	go readFromChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
-	time.Sleep(100 * time.Millisecond)
-	Floor_sensor_channel <- d.Driver_get_floor_sensor_signal()
+	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
+	go checkForElevetaorCommands();
+	d.Driver_set_motor_direction(1);
+
 	deadChan := make(chan int);
 	<- deadChan;
 	
 }
 
-func readFromChannels(Floor_sensor_channel chan int, Stop_button_signal_channel chan bool, Order_button_signal_channel chan buttonOrder){
+func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_channel chan bool, Order_button_signal_channel chan buttonOrder){
 	for{
 		select {
 
-			case floor_sensor:= <-Floor_sensor_channel:
-				elev.floorReached(floor_sensor);
+			case floor:= <-Floor_sensor_channel:
+				fmt.Println("FloorReached read from channel")
+				elev.FloorReached(floor);
+
 			case stop_sensor := <- Stop_button_signal_channel:
+				elev.StopButton();
 				fmt.Println("stop button pushed", stop_sensor);
-			case floor_order:= <- Order_button_signal_channel:
-				fmt.Println("bestilt", floor_order.floor, floor_order.buttonType);
-			case <- time.After(400* time.Millisecond):
+			case order:= <- Order_button_signal_channel:
+				
+				elev.AddToQueue(order.floor, order.buttonType)
+				d.Driver_set_button_lamp(order.buttonType, order.floor, 1);
+			case <- time.After(1* time.Millisecond):
 		}
 	}
 }
@@ -54,6 +60,7 @@ func checkForInput(Floor_sensor_channel chan int, Stop_button_signal_channel cha
 	for i := range floorPushed{floorPushed[i] = 0;}
 	for {
 		if d.Driver_get_floor_sensor_signal() != (-1) && floorSensored ==0 {
+			fmt.Println("reached floor")
 			floorSensored = 1;
 			Floor_sensor_channel <- d.Driver_get_floor_sensor_signal();
 		}
@@ -82,6 +89,24 @@ func checkForInput(Floor_sensor_channel chan int, Stop_button_signal_channel cha
 
 	}
 		
+}
+
+func checkForElevetaorCommands(){
+	for {
+		select {
+		case stopOrder := <- elev.StopButtonLampChan:
+			d.Driver_set_stop_lamp(stopOrder);
+			fmt.Println("Setter stoplampelyset")
+		case floor := <- elev.SetCurrentFloorLampChan:
+			fmt.Println("Setter floor indicator lyset")
+			d.Driver_set_floor_indicator(floor);
+		case direction := <- elev.SetMotorChan:
+			fmt.Println("Endret motor retning til: ", direction)
+			d.Driver_set_motor_direction(direction);
+		case <- time.After(1*time.Millisecond):
+
+		}
+	}
 }
 
 /*func readFromNetwork() {

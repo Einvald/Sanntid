@@ -1,6 +1,6 @@
 package driver
 import (
-	//"fmt"
+	"fmt"
 	)
 // All function which starts with D_ is driver-functions
 
@@ -42,6 +42,7 @@ func Driver_init() int {
 }
 
 func Driver_set_motor_direction(direction int){
+	fmt.Println("Setter motorretning i retning", direction);
 	switch {
 		case direction == 0:
 			Io_write_analog(MOTOR, 0)
