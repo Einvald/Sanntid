@@ -23,10 +23,8 @@ type FloorIndicatorLamp struct{
 type ButtonLamp struct{
 	floor int;
 	buttonType int;
-	turnOn bool;
+	turnOn int;
 }
-
-
 
 var StopButtonLampChan = make(chan int);
 var SetCurrentFloorLampChan = make(chan int);//FloorIndicatorLamp);
@@ -43,9 +41,9 @@ var currentFloor = 1
 }
 */
 var currentState State = RUN_DOWN;
-//Må vurdere hvor nåværende state skal være lagret, men tenker at den skal være lagret her, også "last direction" kan være lurt å ha med
+
 func FloorReached(floor int){
-	fmt.Println("Inside FloorReached with current state: ");
+	fmt.Println("Inside FloorReached with current state: ", currentState);
 	SetCurrentFloorLampChan <- floor;
 	currentFloor = floor;
 	switch currentState{
@@ -54,7 +52,10 @@ func FloorReached(floor int){
 				SetMotorChan <- 0;
 				currentState = DOOR_OPEN;
 				SetTimerChan <- true;
-
+				SetButtonLampChan <- ButtonLamp {floor, 0, 0};
+				SetButtonLampChan <- ButtonLamp {floor, 2, 0};
+				removeOrderFromQueue(floor, 0); //MÅ SENDE MELDING OM AT KØ FOR ALLE HEISER ER FERDIG
+				removeOrderFromQueue(floor, 2);
 			}
 					
 		case RUN_DOWN:
@@ -63,6 +64,8 @@ func FloorReached(floor int){
 				currentState = DOOR_OPEN;
 				fmt.Println("setter timer chan");
 				SetTimerChan <- true;
+				removeOrderFromQueue(floor, 1); //MÅ SENDE MELDING OM AT KØ FOR ALLE HEISER ER FERDIG
+				removeOrderFromQueue(floor, 2);
 			} 
 		case DOOR_OPEN:
 		case IDLE:
@@ -74,9 +77,7 @@ func FloorReached(floor int){
 func TimerOut() {
 	switch currentState{
 		case RUN_UP:
-
 		case RUN_DOWN:
-
 		case DOOR_OPEN:
 				fmt.Println("Døren er lukket som den skulle")
 				SetTimerChan <- false;
@@ -86,68 +87,70 @@ func TimerOut() {
 				case 1:
 					currentState = RUN_UP;
 				case 0:
-					currentState = IDLE;
+					if EmptyQueues(){
+						currentState = IDLE;
+					} else {
+						SetTimerChan <- true;
+					}
 				case -1: 
 					currentState = RUN_DOWN;
 				}
 		case IDLE:
-		
-
-		case STOP:
-
+		case STOP://Hvordan skal døren oppføre seg i stop-situasjoner? 
 	}
 }
 
 func StopButton() {
+	StopButtonLampChan <- 1;
+	EmptyQueues();
+	currentState = STOP;
 	switch currentState{
 		case RUN_UP:
-			StopButtonLampChan <- 1;
-			currentState = STOP;
+			SetMotorChan <- 0;
+			currentDirection = 0;
 		case RUN_DOWN:
-			StopButtonLampChan <- 1;
-			currentState = STOP;
+			SetMotorChan <- 0;
+			currentDirection = 0;
 		case DOOR_OPEN:
-			StopButtonLampChan <- 1;
-			currentState = STOP;
 		case IDLE:
-			StopButtonLampChan <- 1;
-			currentState = STOP;
-
 		case STOP:
-
 	}
 }
-/*
+
 func newOrderInEmptyQueue() {
 	switch currentState{
 		case RUN_UP:
-
 		case RUN_DOWN:
-
 		case DOOR_OPEN:
-
 		case IDLE:
-
+			currentDirection = nextDirection(currentFloor, currentDirection);
+			SetMotorChan <- currentDirection;
+			switch currentDirection{
+				case 1:
+					currentState = RUN_UP;
+				case 0:
+					currentState = IDLE;
+				case -1: 
+					currentState = RUN_DOWN;
+			}
 		case STOP:
-
 	}
 }
 
 func newOrderToCurrentFloor() {currentState = STOP;
 	switch currentState{
 		case RUN_UP:
-
 		case RUN_DOWN:
-
 		case DOOR_OPEN:
-
 		case IDLE:
+			currentState = DOOR_OPEN;
+			SetTimerChan <- true;
 
 		case STOP:
-
+			SetTimerChan <- true;
 	}
 }
-
+/*
 func leftFloor() {
 	switch currentState{
 		case RUN_UP:
@@ -162,8 +165,6 @@ func leftFloor() {
 
 	}
 }
-
-func nextDirection() {
-
-}
 */
+
+

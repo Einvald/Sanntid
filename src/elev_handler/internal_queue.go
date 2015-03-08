@@ -1,17 +1,12 @@
 package elev_handler
 
-//var QueueUp [4]byte
-//var QueueDown [4]byte
-
 import(
 	//"fmt"
 	)
 
-var queueUp  = [4] int {-1, -1, -1, -1};
-var queueDown = [4] int {-1, -1, -1, -1};
-var queueInElev = [4] int {-1, -1, -1, -1};
-
-
+var queueUp  = [4] int {};
+var queueDown = [4] int {};
+var queueInElev = [4] int {};
 
 func nextDirection(currentFloor int, currentDirection int) int {
 	switch currentDirection{
@@ -50,7 +45,6 @@ func nextDirection(currentFloor int, currentDirection int) int {
 	return 0;
 }
 
-
 func CheckIfEmptyQueues() bool {
 	for i := range queueUp{
 		if (queueUp[i] >= 0 || queueDown[i] >= 0 || queueInElev[i] >= 0){
@@ -59,7 +53,6 @@ func CheckIfEmptyQueues() bool {
 	}
 	return true;
 }
-
 
 func AddToQueue(floor int, buttonType int){
 	switch buttonType{
@@ -72,7 +65,7 @@ func AddToQueue(floor int, buttonType int){
 	}
 }
 
-func RemoveOrderFromQueue(floor int, buttonType int){
+func removeOrderFromQueue(floor int, buttonType int){
 	switch buttonType{
 		case 0:
 			queueUp[floor] = -1;
@@ -91,4 +84,12 @@ func checkIfFloorInQueue(floor int, currentDirection int) bool{
 			if queueDown[floor] == floor || queueInElev[floor] == floor{return true;}
 	}
 	return false;
+}
+
+func EmptyQueues(){
+	for i:=range queueUp{
+		queueUp[i] = -1;
+		queueDown[i] = -1;
+		queueInElev[i] = -1;
+	}
 }
