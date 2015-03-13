@@ -114,7 +114,7 @@ func json2struct(jsonObject []byte,n int) DataObject{
 }
 
 func updateMasterQueue(portMasterQueue string,isMasterChan chan bool){
-	UDPadr, err:= net.ResolveUDPAddr("udp",MyIp+":"+portMasterQueue) //muligens "" istedet for MyIp
+	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue) //muligens "" istedet for myIp
 
 	if err != nil {
                 fmt.Println("error resolving UDP address on ", portMasterQueue)
