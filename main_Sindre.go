@@ -13,9 +13,4 @@ func main(){
 	network.InitializeElevator()
 	network.RunElevator()
 
-	
-
-	
-
-
 }

@@ -21,7 +21,7 @@ func InitializeElevator() {
 	fmt.Println("lengden på MasterQueue er",len(MasterQueue))
 	if len(MasterQueue)==1{
 		IsBackup = true
-		fmt.Println("jeg er Backup")
+		fmt.Println("jeg er Backup. Backup =",IsBackup)
 	}
 	
 	
@@ -51,7 +51,7 @@ func getIpAddr() string {
 func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNumber osv i funksjonene nedover
 	bufferToRead := make([] byte, 1024)
 	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue)
-
+	
 	if err != nil {
                 fmt.Println("error resolving UDP address on ", portMasterQueue)
                 fmt.Println(err)
