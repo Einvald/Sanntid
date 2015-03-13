@@ -37,7 +37,7 @@ func RunElevator(){
 	isBackupChan := make(chan bool)
 	
 	 //Trenger egentlig ikke ipBroadcast her fordi den leser kun fra egen port // obs 0
-	go updateMasterQueue(portMasterQueue,isMasterChan)
+	go updateMasterQueue(portMasterQueue,isMasterChan, isBackupChan)
 	go broadcastIp(ipBroadcast,portIp) // Fungerer også som Imalive
 	
 	for{
@@ -51,20 +51,16 @@ func RunElevator(){
 
 		}else if IsBackup {
 			fmt.Println("jeg er Backup")
-			//go checkMasterAlive(portMasterQueue,isMasterChan) // Denne må lages. Sjekker om Master broadcaster køen fortsatt. Hvis ikke blir man selv master og nestemann blir backup
-
 			IsMaster = <- isMasterChan	
 			IsBackup = false
-			updateHierarchy()
-		
+					
 		}else{
 			IsBackup = <-isBackupChan
 			
-
 		} 
 	}
 
-
+	
 	time.Sleep(25000 * time.Millisecond)
 	
 	fmt.Println("jodle","Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
@@ -113,7 +109,7 @@ func json2struct(jsonObject []byte,n int) DataObject{
 	return structObject
 }
 
-func updateMasterQueue(portMasterQueue string,isMasterChan chan bool){
+func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupChan chan bool){
 	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue) //muligens "" istedet for myIp
 
 	if err != nil {
@@ -130,28 +126,32 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool){
             os.Exit(1)
 	}
 	for{
-	bufferToRead := make([] byte, 1024)
-	deadline := time.Now().Add(1500*time.Millisecond)
-	readerSocket.SetReadDeadline(deadline)
-	n,UDPadr,err := readerSocket.ReadFromUDP(bufferToRead[0:])
-		
-    
- 	if err != nil && IsBackup {
- 		fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
-        isMasterChan <- true
-         
-           
-    }
-    
-    fmt.Println("got message from ", UDPadr, " with n = ", n)
+		bufferToRead := make([] byte, 1024)
+		deadline := time.Now().Add(1500*time.Millisecond)
+		readerSocket.SetReadDeadline(deadline)
+		n,UDPadr,err := readerSocket.ReadFromUDP(bufferToRead[0:])
+			
+	    
+	 	if err != nil && IsBackup {
+	 		fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
+	        isMasterChan <- true
+	         
+	           
+	    }
+	    
+	    fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
 
-   	if n > 0 && !IsMaster {
-       	structObject := json2struct(bufferToRead,n)
-       	MasterQueue = structObject.MasterQueue
-       	
-     	   		 
-    }
-   
+	   	if n > 0 && !IsMaster {
+	       	structObject := json2struct(bufferToRead,n)
+	       	MasterQueue = structObject.MasterQueue
+	       	if !IsBackup {
+	       		if MasterQueue[1].Ip == MyIp{
+	       			isBackupChan <- true
+	       		}
+	       	}
+	       	 	   		 
+	    }
+	   
    
 	}
 }
@@ -274,48 +274,6 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 	}	
 }
 
-func checkMasterAlive(portMasterQueue string){
-	
-	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue)
-
-	if err != nil {
-                fmt.Println("error resolving UDP address on ", portMasterQueue)
-                fmt.Println(err)
-                os.Exit(1)
-        }
-    
-    readerSocket ,err := net.ListenUDP("udp",UDPadr)
-    
-    if err != nil {
-            fmt.Println("error listening on UDP port ", portMasterQueue)
-            fmt.Println(err)
-            os.Exit(1)
-	}
-	for{
-	bufferToRead := make([] byte, 1024)
-	deadline := time.Now().Add(1500*time.Millisecond)
-	readerSocket.SetReadDeadline(deadline)
-	n,UDPadr,err := readerSocket.ReadFromUDP(bufferToRead[0:])
-		
-    
- 	if err != nil {
- 		fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
-       //isMasterChan <- true
-         
-        os.Exit(1)     
-    }
-    
-    fmt.Println("got message from ", UDPadr, " with n = ", n)
-
-   	if n > 0 {
-       	fmt.Println("Master er i kjempeform og jer er fortsatt backup. I køen hans ligger:",json2struct(bufferToRead,n)) 
-       	//os.Exit(1)  
-      		 
-   }
-   
- 
-  }
-}
 
 func removeDeadElevators(){ 
 	for{
@@ -342,12 +300,5 @@ func removeDeadElevators(){
 	}
 }
 
-func updateHierarchy(){
-	//tempQueue := MasterQueue
-	//oldMaster:= tempQueue[0]
-	//MasterQueue = tempQueue[1:len(tempQueue)]
-
-	
-}
 
 
