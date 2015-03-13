@@ -30,7 +30,7 @@ var IsConnected = false //trenger vi denne?
 var MyIp string 			
 
 func RunElevator(){
-	ipBroadcast := "129.241.127.255"
+	ipBroadcast := "129.241.187.255"
 	portIp := "20017" //Her velges port som egen IP-adresse skal sendes og leses fra
 	portMasterQueue := "20019" //Her velges port som Masterqueue skal sendes og leses fra
 	recieveIpChan := make(chan string,1024) 
@@ -41,7 +41,7 @@ func RunElevator(){
 	
 	
 	if IsMaster{
-		go broadcastMasterQueue(ipBroadcast, portMasterQueue) 	//Denne må lages. Fungerer som imAlive
+		go broadcastMasterQueue(ipBroadcast, portMasterQueue)									//Denne må lages. Fungerer som imAlive
 		go removeDeadElevators()
 
 
@@ -262,26 +262,29 @@ func checkMasterAlive(portMasterQueue string){
 
 func removeDeadElevators(){ // Problemer her me at denne går så fort at de andre ikke kommer til?
 	for{
-		fmt.Println("er inne i removeDeadElevators")
 		tempQueue := MasterQueue
-		for _,element:= range tempQueue{
-			timeNow := time.Now().UnixNano() / int64(time.Millisecond)
-			if timeNow > element.Deadline{
-				fmt.Println("tiden gikk ut")
-				fmt.Println("det har gått for lang tid siden vi hørte fra heisen med ip",element.Ip,"Den fjernes derfor fra Masterqueue")
-				newMasterQueue := [] IpObject {}
-				for _,element2:= range tempQueue{
-					if element != element2{
-						newMasterQueue =append(newMasterQueue,element2)
+		if len(tempQueue) > 0{
+			for _,element:= range tempQueue{
+				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
+				if timeNow > element.Deadline{
+					fmt.Println("tiden gikk ut")
+					fmt.Println("det har gått for lang tid siden vi hørte fra heisen med ip",element.Ip,"Den fjernes derfor fra Masterqueue")
+					newMasterQueue := [] IpObject {}
+					for _,element2:= range tempQueue{
+						if element != element2{
+							newMasterQueue =append(newMasterQueue,element2)
+						}
 					}
+					MasterQueue = newMasterQueue
+					break
 				}
-				MasterQueue = newMasterQueue
-				break
 			}
-		}
-		time.Sleep(100*time.Millisecond)		
+		}else{
+			time.Sleep(500 * time.Millisecond)
+		}	
 	}
 }
+
 
 
 
