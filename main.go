@@ -17,18 +17,20 @@ type buttonOrder struct{
 	buttonType int;
 }
 
+/*
 type ButtonLamp struct{
 	floor int;
 	buttonType int;
 	turnOn int;
 }
+*/
 
 func main() {
 	Floor_sensor_channel := make(chan int, 1);
 	Stop_button_signal_channel := make(chan bool,1);
 	Order_button_signal_channel := make(chan buttonOrder);
 	i := d.Driver_init()
-	d.Driver_set_button_lamp(0, 0, 1);
+	d.Driver_set_button_lamp(2, 1, 1);
 	d.Driver_set_motor_direction(-1);
 	elev.EmptyQueues();
 	elev.AddToQueue(1, 2);
@@ -36,7 +38,8 @@ func main() {
 	fmt.Println(elev.STOP)
 	go checkForInput(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
 	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
-	go checkForElevetorCommands();
+	time.Sleep(100 * time.Millisecond);
+	go handleElevatorCommands();
 	
 	deadChan := make(chan int);
 	<- deadChan;
@@ -47,6 +50,7 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 		select {
 
 			case floor:= <-Floor_sensor_channel:
+				
 				fmt.Println("FloorReached read from channel")
 				elev.FloorReached(floor);
 
@@ -54,14 +58,20 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 				elev.StopButton();
 				fmt.Println("stop button pushed", stop_sensor);
 			case order:= <- Order_button_signal_channel:
-				elev.AddToQueue(order.floor, order.buttonType)
+				
 				d.Driver_set_button_lamp(order.buttonType, order.floor, ON);
-				if elev.CheckIfEmptyQueues(){
+				if elev.CheckIfCurrentFloor(order.floor){
+					elev.AddToQueue(order.floor, order.buttonType);
+					elev.NewOrderToCurrentFloor();
+				}else if elev.CheckIfEmptyQueues(){
+					elev.AddToQueue(order.floor, order.buttonType)
 					elev.NewOrderInEmptyQueue();
+				}else {
+					elev.AddToQueue(order.floor, order.buttonType)
 				}
 
 				
-			case <- time.After(1* time.Millisecond):
+			case <- time.After(10* time.Millisecond):
 		}
 	}
 }
@@ -74,6 +84,9 @@ func checkForInput(Floor_sensor_channel chan int, Stop_button_signal_channel cha
 	for {
 		if d.Driver_get_floor_sensor_signal() != (-1) && floorSensored ==0 {
 			fmt.Println("reached floor")
+			if elev.CheckIfFloorInQueue(d.Driver_get_floor_sensor_signal()){
+					d.Driver_set_motor_direction(0);
+			}
 			floorSensored = 1;
 			Floor_sensor_channel <- d.Driver_get_floor_sensor_signal();
 		}
@@ -104,7 +117,9 @@ func checkForInput(Floor_sensor_channel chan int, Stop_button_signal_channel cha
 		
 }
 
-func checkForElevetorCommands(){
+func handleElevatorCommands(){
+	timeChan := make(chan int64);
+	go elev.DoorTimer(timeChan);
 	for {
 		select {
 		case stopButtonLamp := <- elev.StopButtonLampChan:
@@ -119,13 +134,15 @@ func checkForElevetorCommands(){
 				
 				if turnOn{
 					fmt.Println("Lest fra SetTimerChan")
-					go elev.DoorTimer(); //OBS!!! ER DET GREIT Å KJØRE EGEN TRÅD HER?
+					timeChan <- time.Now().UnixNano()/int64(time.Millisecond)
+					//go elev.DoorTimer(); //OBS!!! ER DET GREIT Å KJØRE EGEN TRÅD HER?
 					d.Driver_set_door_open_lamp(1);
 				} else{d.Driver_set_door_open_lamp(0);}
-		case buttonOrder := <- elev.SetButtonLampChan:
-			fmt.Println(buttonOrder);
-			//d.Driver_set_button_lamp(buttonOrder.buttonType, buttonOrder.floor, buttonOrder.turnOn) må ordne sånn at main kan lese typen ButtonLamp som opprinnelig skal bli deklarert i elev_handler. 
-		case <- time.After(1*time.Millisecond):
+		case buttonOrder  := <- elev.SetButtonLampChan:
+			order := elev.ButtonLamp {0, 0, 0};
+			order = buttonOrder
+			d.Driver_set_button_lamp(order.ButtonType, order.Floor, order.TurnOn);
+		case <- time.After(10*time.Millisecond):
 
 		}
 	}
