@@ -144,11 +144,13 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	   // fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
 	    fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
 	   	if n > 0 && !IsMaster {
+	   		fmt.Println(n)
 	       	structObject := json2struct(bufferToRead,n)
 	       	MasterQueue = structObject.MasterQueue
-	       	if !IsBackup {
-	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(MasterQueue))
-	       		if len(MasterQueue) > 1 && MasterQueue[1].Ip == MyIp{
+	       	fmt.Println("MasterQueue på sneeky sted:",MasterQueue)
+	       	if !IsBackup && len(MasterQueue) > 1 {
+	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(MasterQueue),"MyIp er:",MyIp, "den" )
+	       		if MasterQueue[1].Ip == MyIp{
 	       			fmt.Println("lengden på køen er:",len(MasterQueue))
 	       			isBackupChan <- true
 	       		}
@@ -181,6 +183,7 @@ func updateElevators(recieveIpChan chan string) {
 				if allreadyInQueue && IsMaster{
 					deadline := time.Now().UnixNano() / int64(time.Millisecond) + 1500
 					MasterQueue[index].Deadline = deadline
+					fmt.Println("har endret ")
 
 				}
 				if !allreadyInQueue{
