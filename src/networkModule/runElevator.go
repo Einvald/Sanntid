@@ -5,6 +5,8 @@ package networkModule
 
 //Mtp goRoutines: Vi kaller heller connectElevator fra main og så kjører vi Runelevator som en goroutine slik at dette gjøres for allti.d
 
+
+
 import (
     	"fmt"
     	"net"
@@ -146,11 +148,12 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	   		fmt.Println(n)
 	       	structObject := json2struct(bufferToRead,n)
 	       	MasterQueue = structObject.MasterQueue
-	       	fmt.Println("MasterQueue på sneeky sted:",MasterQueue)
-	       	if !IsBackup && len(MasterQueue) > 1 {
-	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(MasterQueue),"MyIp er:",MyIp, "den" )
-	       		if MasterQueue[1].Ip == MyIp{
-	       			fmt.Println("lengden på køen er:",len(MasterQueue))
+	       	temp := MasterQueue
+	       	fmt.Println("MasterQueue på sneeky sted:",temp)
+	       	if !IsBackup && len(temp) > 1 {
+	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(temp),"MyIp er:",MyIp, "den" )
+	       		if temp[1].Ip == MyIp{
+	       			fmt.Println("lengden på køen er:",len(temp))
 	       			isBackupChan <- true
 	       		}
 	       	}
@@ -280,11 +283,11 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 	}	
 }
 
-
 func removeDeadElevators(){ 
 	for{
 		tempQueue := MasterQueue
 		n := len(tempQueue)
+		fmt.Println("lengden på MasterQueue er:",n)
 		if n > 0{
 			for i,element:= range tempQueue{
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)

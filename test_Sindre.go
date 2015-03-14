@@ -33,7 +33,7 @@ func main() {
 	fmt.Println(diff)
 	kjau := []int {1,2,3,4,5,6}
 	per := kjau [0:3]
-
+	
 	per = append(per,kjau[1:3]...)
 
 	fmt.Println(per)
