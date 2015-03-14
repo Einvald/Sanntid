@@ -16,7 +16,7 @@ type buttonOrder struct{
 	floor int;
 	buttonType int;
 }
-
+var masterQueue = [] int {};
 /*
 type ButtonLamp struct{
 	floor int;
@@ -26,20 +26,27 @@ type ButtonLamp struct{
 */
 
 func main() {
+	masterQueue =append(masterQueue,1);
+	masterQueue =append(masterQueue,2);
+	temp := masterQueue[0:0];
 	Floor_sensor_channel := make(chan int, 1);
 	Stop_button_signal_channel := make(chan bool,1);
 	Order_button_signal_channel := make(chan buttonOrder);
 	i := d.Driver_init()
-	d.Driver_set_button_lamp(2, 1, 1);
+	d.Driver_set_button_lamp(2, 0, 1);
 	d.Driver_set_motor_direction(-1);
 	elev.EmptyQueues();
-	elev.AddToQueue(1, 2);
+	elev.AddToQueue(0, 2);
 	fmt.Println(i)
 	fmt.Println(elev.STOP)
 	go checkForInput(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
 	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
 	time.Sleep(100 * time.Millisecond);
 	go handleElevatorCommands();
+	elev.InitializeChanLocks();
+
+	fmt.Println(masterQueue);
+	fmt.Println(temp);
 	
 	deadChan := make(chan int);
 	<- deadChan;
@@ -50,16 +57,13 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 		select {
 
 			case floor:= <-Floor_sensor_channel:
-				
-				fmt.Println("FloorReached read from channel")
 				elev.FloorReached(floor);
-
 			case stop_sensor := <- Stop_button_signal_channel:
 				elev.StopButton();
 				fmt.Println("stop button pushed", stop_sensor);
 			case order:= <- Order_button_signal_channel:
-				
 				d.Driver_set_button_lamp(order.buttonType, order.floor, ON);
+				if order.buttonType != 2 {fmt.Println("COST = ", elev.GetCostForOrder(order.floor, order.buttonType));}
 				if elev.CheckIfCurrentFloor(order.floor){
 					elev.AddToQueue(order.floor, order.buttonType);
 					elev.NewOrderToCurrentFloor();

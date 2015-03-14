@@ -2,6 +2,7 @@ package elev_handler
 
 import(
 	"fmt"
+	"math"
 	)
 
 var queueUp  = [4] int {};
@@ -12,34 +13,22 @@ func nextDirection(currentFloor int, currentDirection int) int {
 	switch currentDirection{
 		case 1:
 			for i := range queueUp{
-				if (queueUp[i] > currentFloor || queueInElev[i] > currentFloor){
-					return 1;
-				}
+				if (queueUp[i] > currentFloor || queueInElev[i] > currentFloor || queueDown[i]> currentFloor){return 1;}
 			}
 			for i := range queueDown{
-				if ((queueDown[i] < currentFloor && queueDown[i]>=0) || (queueInElev[i] < currentFloor && queueInElev[i]>=0) || (queueUp[i] < currentFloor && queueUp[i] >= 0) ){
-					return -1;
-				}
+				if ((queueDown[i] < currentFloor && queueDown[i]>=0) || (queueInElev[i] < currentFloor && queueInElev[i]>=0) || (queueUp[i] < currentFloor && queueUp[i] >= 0) ){return -1;}
 			}
 		case 0:
 			for i := range queueUp{
-				if (queueUp[i] > currentFloor || queueInElev[i] > currentFloor || queueDown[i] > currentFloor){
-					return 1;
-				}
-				if ((queueDown[i] < currentFloor && queueDown[i]>=0) || (queueInElev[i] < currentFloor && queueInElev[i]>=0) || (queueUp[i] < currentFloor && queueUp[i] >= 0)){
-					return -1;
-				}
+				if (queueUp[i] > currentFloor || queueInElev[i] > currentFloor || queueDown[i] > currentFloor){return 1;}
+				if ((queueDown[i] < currentFloor && queueDown[i]>=0) || (queueInElev[i] < currentFloor && queueInElev[i]>=0) || (queueUp[i] < currentFloor && queueUp[i] >= 0)){return -1;}
 			}
 		case -1:
 			for i := range queueDown{
-				if ((queueDown[i] < currentFloor && queueDown[i]>=0) || (queueInElev[i] < currentFloor && queueInElev[i]>=0)) {
-					return -1;
-				}
+				if ((queueDown[i] < currentFloor && queueDown[i]>=0) || (queueInElev[i] < currentFloor && queueInElev[i]>=0) || (queueUp[i] < currentFloor && queueUp[i] >= 0)) {return -1;}
 			}
 			for i := range queueUp{
-				if (queueUp[i] > currentFloor || queueInElev[i] > currentFloor){
-					return 1;
-				}
+				if (queueUp[i] > currentFloor || queueInElev[i] > currentFloor || queueDown[i]>currentFloor){return 1;}
 			}
 	}
 	return 0;
@@ -47,12 +36,9 @@ func nextDirection(currentFloor int, currentDirection int) int {
 
 func CheckIfEmptyQueues() bool {
 	for i := range queueUp{
-		if (queueUp[i] >= 0 || queueDown[i] >= 0 || queueInElev[i] >= 0){
-			return false;
-			fmt.Println("Not empty Queues")
-		}
+		if (queueUp[i] >= 0 || queueDown[i] >= 0 || queueInElev[i] >= 0){return false;}
 	}
-	fmt.Println("Empty Queues")
+	fmt.Println("Empty Queues true");
 	return true;
 }
 
@@ -79,6 +65,7 @@ func removeOrderFromQueue(floor int, buttonType int){
 }
 
 func checkIfFloorInQueue(floor int, currentDirection int) bool{
+	fmt.Println("CHECKIFFLOORINQUEUE: ", floor);
 	switch currentDirection{
 		case 1:
 			if queueUp[floor] == floor || queueInElev[floor] == floor{return true;}
@@ -111,18 +98,110 @@ func printQueues(){
 
 func checkIfOrdersAtHigherFloors(floor int) bool{
 	for i := range queueUp{
-		if ((queueUp[i] == i && i>floor) || (queueInElev[i]==i && i>floor)){
-			return true;
-		}
+		if ((queueUp[i] == i && i>floor) || (queueInElev[i]==i && i>floor) || (queueUp[i]==i && i>floor)){return true;}
 	}
 	return false;
 }
 
 func checkIfOrdersAtLowerFloors(floor int) bool{
 	for i := range queueUp{
-		if ((queueDown[i] == i && i<floor) || (queueInElev[i]==i && i<floor)){
-			return true;
-		}
+		if ((queueDown[i] == i && i<floor) || (queueInElev[i]==i && i<floor) || (queueUp[i] == i && i<floor)){return true;}
 	}
 	return false;
+}
+
+func getQueue(buttonType int) [4] int{
+	switch buttonType{
+	case 0:
+		return queueUp;
+	case 1:
+		return queueDown;
+	case 2:
+		return queueInElev
+	}
+	return queueUp;
+}
+
+func getCostForOrder(floor int, buttonType int, currentDirection int, currentFloor int, currentState State) int {
+	cost := 0;
+	if currentState== IDLE {cost += (int(math.Abs(float64(floor - currentFloor))*3));} else if currentState == DOOR_OPEN{cost+=3;}
+	if currentState == DOOR_OPEN && ((currentDirection == 1 && buttonType == 0) || (currentDirection == -1 && buttonType == 1)) {return 0;}
+	switch currentDirection {
+		case 1:
+			switch buttonType {
+				case 0:
+					if currentFloor >= floor{cost+=15;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
+				case 1:
+					cost += 10;
+
+			}
+		case -1:
+			switch buttonType {
+				case 0:
+					cost += 10;
+				case 1:
+					if currentFloor <= floor{cost+=15;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
+			}
+	}
+	stops := amountOfStopsBeforeFloor(floor, buttonType, currentDirection, currentFloor);
+	cost += stops*5;
+	fmt.Println("COST = ", cost)
+	return cost;
+}
+
+func amountOfStopsBeforeFloor(floor int, buttonType int, currentDirection int, currentFloor int) int {
+	stopCounter := 0;
+	floorIsOver := floor>currentFloor;
+	switch currentDirection{
+		case 1:
+			switch buttonType{
+				case 0:
+					if floorIsOver{
+						for i := range queueUp{
+							if i == floor {break;}
+							if ((queueUp[i] == i || queueInElev[i] == i) && i>currentFloor){stopCounter++;} 
+						}
+					} else{
+						for i := range queueUp{
+							if queueDown[i]==i || queueInElev[i] == i  {stopCounter++;}
+							if queueUp[i] == i && !(i>floor && i<=currentFloor) && queueInElev[i] != i {stopCounter++;}
+
+						}
+					}
+				case 1:
+						for i := range queueUp{
+							if ((queueUp[i] == i || queueInElev[i] == i) && i>currentFloor){stopCounter++;}
+							if (queueDown[i] == i || (queueInElev[i] == i && i<currentFloor)) && i>floor {stopCounter++;} 
+						}
+			}
+		case -1:
+			switch buttonType{
+				case 0:
+						for i := range queueDown{
+							if ((queueDown[i] == i || queueInElev[i] == i) && i<currentFloor){stopCounter++;}
+							if (queueUp[i] == i || (queueInElev[i] == i && i>=currentFloor)) && i<floor  {stopCounter++;}
+						}
+				case 1:
+					if !floorIsOver && floor != currentFloor{
+						for i := range queueDown{
+							if ((queueDown[i] == i || queueInElev[i] == i) && i<currentFloor && i>floor){stopCounter++;}
+						}
+					} else{
+						for i := range queueUp{
+							if (queueUp[i]==i || queueInElev[i] == i) {stopCounter++;}
+							if queueDown[i] == i && !(i<floor && i>=currentFloor) && queueInElev[i] != i {stopCounter ++;} 
+						}
+			}
+		}
+
+	}
+	fmt.Println("STOPAMOUNT = ", stopCounter);
+	fmt.Println("STOPAMOUNT = ", stopCounter);
+	return stopCounter;
+}
+
+func checkIfOrdersInFloor(floor int) bool{
+	if (queueUp[floor]==floor || queueDown[floor]==floor || queueInElev[floor]==floor){
+		return true;
+	} else {return false;}
 }
