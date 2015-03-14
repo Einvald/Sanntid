@@ -14,7 +14,23 @@ Eventuelle feil:
 
 Til neste gang:
 	1. Sjekk med 3 heiser: Funker ting som det skal når backup dør?
+	2. Sett sikkerhetsblokk på main
+
+	MasterQueue int
+	var masterQueueLock = make(chan int, 1);
+
+	(i en funksjon) masterQueueLock <- 1; (Dette gjøres som en initialization)
+
+	(Her starter vanlig bruk)
+	<- masterQueueLock;
+	///
+	All en dinrg på masterqueue
+	masterQueue = Endring;
+	///
+	masterQueueLock <- 1;
+
 	2. Gå igang med implementasjon av heisnettverket
+
 
 
 	
