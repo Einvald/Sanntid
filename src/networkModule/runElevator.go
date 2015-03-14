@@ -63,7 +63,7 @@ func RunElevator(){
 	}
 
 	
-	time.Sleep(25000 * time.Millisecond)
+	
 	
 	
 
@@ -180,13 +180,13 @@ func updateElevators(recieveIpChan chan string) {
 				}
 				
 				if allreadyInQueue && IsMaster{
-					deadline := time.Now().UnixNano() / int64(time.Millisecond) + 1500
+					deadline := time.Now().UnixNano() / int64(time.Millisecond) + 2000
 					MasterQueue[index].Deadline = deadline
 					fmt.Println("har endret ")
 
 				}
 				if !allreadyInQueue{
-					deadline := time.Now().UnixNano() / int64(time.Millisecond)  + 1500
+					deadline := time.Now().UnixNano() / int64(time.Millisecond)  + 2000
 					object := IpObject {newIpObject,deadline}
 					MasterQueue = append(MasterQueue,object)	
 				}
@@ -288,7 +288,7 @@ func removeDeadElevators(){
 		if n > 0{
 			for i,element:= range tempQueue{
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
-				if timeNow > element.Deadline{
+				if timeNow > element.Deadline && element.Ip != MyIp{
 					fmt.Println("fjerner død heis")
 					newMasterQueue :=tempQueue[0:i]
 					newMasterQueue = append(newMasterQueue,tempQueue[i+1:n]...)
