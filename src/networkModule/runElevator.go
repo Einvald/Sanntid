@@ -137,8 +137,7 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	 	if err != nil && IsBackup {
 	 		fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
 	        isMasterChan <- true
-	         
-	           
+	                
 	    }
 	    
 	   // fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
@@ -285,27 +284,22 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 func removeDeadElevators(){ 
 	for{
 		tempQueue := MasterQueue
-		if len(tempQueue) > 0{
-			for _,element:= range tempQueue{
+		n := len(tempQueue)
+		if n > 0{
+			for i,element:= range tempQueue{
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 				if timeNow > element.Deadline{
-					fmt.Println("tiden gikk ut")
-					fmt.Println("det har gått for lang tid siden vi hørte fra heisen med ip",element.Ip,"Den fjernes derfor fra Masterqueue")
-					newMasterQueue := [] IpObject {}
-					for _,element2:= range tempQueue{
-						if element != element2{
-							newMasterQueue =append(newMasterQueue,element2)
-						}
-					}
+					fmt.Println("fjerner død heis")
+					newMasterQueue :=tempQueue[0:i]
+					newMasterQueue = append(newMasterQueue,tempQueue[i+1:n]...)
 					MasterQueue = newMasterQueue
 					break
 				}
 			}
 		}else{
-			time.Sleep(500 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 		}	
 	}
 }
-
 
 

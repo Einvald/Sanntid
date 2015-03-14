@@ -32,13 +32,11 @@ func main() {
 	//yolo := MasterQueue[1].LastUpdated
 	fmt.Println(diff)
 	kjau := []int {1,2,3,4,5,6}
-	//i := 3
-	klode := kjau[1:len(kjau)]
-	//pige := kjau[i+1:len(kjau)]
-	//klode = append(klode,pige)
-	fmt.Println(klode)
+	per := kjau [0:3]
 
+	per = append(per,kjau[1:3]...)
 
+	fmt.Println(per)
 	go test()
 	//time.Sleep(10000 * time.Millisecond)
 	
