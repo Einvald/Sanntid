@@ -13,14 +13,13 @@ func InitializeElevator() {
 	masterQueueLock <- 1 
 	portMasterQueue := "20019"
 	myIp = getIpAddr()
-	fmt.Println("2her kommer min IP",myIp)
+	fmt.Println("Dette er min IP",myIp)
 	isEmpty := setMasterQueue(portMasterQueue)
 	<- masterQueueLock 
 	if isEmpty{
 		fmt.Println("jeg er Master")
 		isMaster = true 
 	}
-	fmt.Println("lengden på MasterQueue er",len(masterQueue))
 	if len(masterQueue)==1{
 		isBackup = true
 		fmt.Println("jeg er Backup. Backup =",isBackup)

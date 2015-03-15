@@ -1,20 +1,37 @@
 
 
-Når jeg får to PC-er med ulike IP må jeg sjekke om funksjonene jeg har laget funker.
-Ting som skal sjekkeS:
 	
-	3. Prøv med en tredje PC og se om den forstår at den verken er master eller Backup
+Hva er gjort:
+1. Det er laget en initializeElevator funlskjon som initialiser nye heiser som kobler seg på, setter om den eventuelt skal være Master eller Backup og får masterQueue fra Master. 
+2. Det er laget en runElevator med funksjonalitet for både Master, Backup og slave. Denne er ment til å kjøre i bakgrunnen som en goroutine og behandle nye heiser som kobler seg på, heiser som faller ut 
+	og tilhørende endring av Master, Backup eller slave når slike hendelser intreffer.
+3. Master:
+	-Leser inn den broadcastede ip-en fra andre heiser. Denne bruker den til å enten oppdatere deadline i MasterQueue, eller eventuelt legge den til hvis den ikke finnes fra før.
+	-En gouroutine går hele tiden gjennom MasterQueue og sjekker deadline. Hvis man ikke har hørt fra dem på 2000 milisekunder sletter Masteren heisen fra køen.
+	-Broadcaster MasterQueue som kun ppdateres av Master.
+4. Backup:
+	-Sjekker at Master er i live. Hvis den ikke har hørt fra Master på 1500 milisekund setter den seg selv til Master og tar over dens funksjonaliteter.
+	-Motar også MasterQueue fra master og oppdateren den
+5. Resterende slaver:
+	-Motar Masterqueue fra Master
+	-Følger med på om man er nr. 2 i lista, da blir man backup og tar over dens funksjonalitet
+
+6. Det er enda ikke testet på 4 pc-er, men ser ingen grunn til at dette ikke skal virke.
 
 
-Eventuelle feil:
 
-	1.i update Mastequeue ca. linje 116 har jeg ingen body på case og continue på default, mulig dette ikke kommer til å virke.
+Hva skal gjøres:
+
+1. Gå igang med implementasjon av heisnettverket
+	1.2: Vi må diskuteres hvordan dette skal lages.
+
+
+
+
 	
 
 
-Til neste gang:
-	1. Sjekk med 3 heiser: Funker ting som det skal når backup dør?
-	2. Sett sikkerhetsblokk på main
+	Syntax for å lage blocking:
 
 	MasterQueue int
 	var masterQueueLock = make(chan int, 1);
@@ -29,7 +46,7 @@ Til neste gang:
 	///
 	masterQueueLock <- 1;
 
-	2. Gå igang med implementasjon av heisnettverket
+	
 
 
 

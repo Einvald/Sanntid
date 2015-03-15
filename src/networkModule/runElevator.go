@@ -38,14 +38,13 @@ func RunElevator(){
 	recieveIpChan := make(chan string,1024) 
 	isMasterChan := make(chan bool,1)
 	isBackupChan := make(chan bool,1)
-	//masterQueueLock <- 1
-	 //Trenger egentlig ikke ipBroadcast her fordi den leser kun fra egen port // obs 0
 	go updateMasterQueue(portMasterQueue,isMasterChan, isBackupChan)
 	go broadcastIp(ipBroadcast,portIp) // Fungerer også som Imalive
 	
 	for{
 		if isMaster{
 			fmt.Println("Er nå Master")
+			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			go listenForActiveElevators(portIp,recieveIpChan)
 			go updateElevators(recieveIpChan) //myIp Legges nå inn gjennom broadcastIP og updateM.Queue
 			go broadcastMasterQueue(ipBroadcast, portMasterQueue)									//Denne må lages. Fungerer som imAlive
@@ -54,20 +53,21 @@ func RunElevator(){
 			<-deadChan
 
 		}else if isBackup {
+			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			fmt.Println("jeg er Backup")
 			isMaster = <- isMasterChan	
 			isBackup = false
-			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
+			
 					
 		}else{
-			fmt.Println("jeg er ingenting")
-			isBackup = <-isBackupChan
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
+			fmt.Println("Jeg er bare slave")
+			isBackup = <-isBackupChan
+			
 			
 		} 
 	}
 
-	
 	
 	
 	
@@ -83,22 +83,18 @@ func broadcastIp(ipBroadcast string, portIp string){
 	}
 	broadcastSocket, err := net.DialUDP("udp",nil, udpAddr)
 	for {
-		//fmt.Println("Er igang med å broadcaste")
 		
-		//fmt.Println("å hei hvor det går")
 		if err != nil {
 		    fmt.Println("error listening on UDP port ", portIp)
 		    fmt.Println(err)
 		    os.Exit(1)
 		}
-		//fmt.Println("detter er min IP",myIp)
 		sendingObject := DataObject{myIp,[]IpObject {}}
-		//fmt.Println("Slik ser sendingObject ut:",sendingObject)
 		jsonFile := struct2json(sendingObject)
 		broadcastSocket.Write(jsonFile)
 
 		
-		//time.Sleep(50*time.Millisecond)	
+		
 
 
 	}	
@@ -147,10 +143,8 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	    
 	    select{
 	    case <- masterQueueLock:
-		   // fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
-		    //fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 		   	if n > 0 && !isMaster {
-		   		fmt.Println(n)
+		   		//fmt.Println(n)
 		       	structObject := json2struct(bufferToRead,n)
 		       	
 		       	masterQueue = structObject.MasterQueue
@@ -175,18 +169,15 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 //Leser inn ny ip fra channel. lager en temp kø lik nåværende MasterQueue. Sjekker om ny ip ligger i køen. // Hvis ikke legges den til i lista.
 func updateElevators(recieveIpChan chan string) { 
 	for {
-		//fmt.Println("er igang med å oppdatere MasterQ")
 		allreadyInQueue := false
 		select{
 			case newIpObject:= <- recieveIpChan:
-				//fmt.Println("leste fra kanal")
 				index := 0
 				<- masterQueueLock
 				for i,element:= range masterQueue{
 					if element.Ip == newIpObject{
 						allreadyInQueue = true
-						index = i
-						//fmt.Println("den var allerede på plass den gitt")
+						index = i						
 						break
 					}
 				}
@@ -207,8 +198,7 @@ func updateElevators(recieveIpChan chan string) {
 				masterQueueLock <- 1
 
 		default:
-			//fmt.Println("går i default")
-			//time.Sleep(50 * time.Millisecond)
+			
 				
 		}
 		
@@ -227,37 +217,27 @@ func listenForActiveElevators(portIp string,recieveIpChan chan string) {
         fmt.Println(err)
         os.Exit(1)
     }
-    //fmt.Println("Har nå kommet til ListenUDP")
+    
     readerSocket ,err := net.ListenUDP("udp",UDPadr)
     
     if err != nil {
         fmt.Println("error listening on UDP port ", portIp)
         fmt.Println(err)
         os.Exit(1)
-        
 	}
-	
 	for {
-		//fmt.Println("er i gang med å lese fra Broadcast")
-		n,_, err := readerSocket.ReadFromUDP(bufferToRead)
-        
+		n,_, err := readerSocket.ReadFromUDP(bufferToRead)  
 	 	if err != nil {
             fmt.Println("error reading data from connection")
             fmt.Println(err)
-            os.Exit(1)
-            
+            os.Exit(1)     
         }
         
-       // fmt.Println("got message from ", UDPadr, " with n = ", n)
-
-       	if n > 0 {
-          // 	fmt.Println("printer melding vi leste over UDP",string(bufferToRead))  
+       	if n > 0 { 
             structObject := json2struct(bufferToRead,n)
             ip := structObject.NewIp
-           // fmt.Println("fikk noe med lengde større enn 0")
             select{
             	case recieveIpChan <- ip:
-            		//fmt.Println("har sendt noe til kanalen")
             	default:
             		time.Sleep(5*time.Millisecond)		
             }    
@@ -277,19 +257,13 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 	for {
 		select{
 		case <- masterQueueLock:
-			//fmt.Println("Er igang med å broadcaste")
-			//fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
-			//fmt.Println("er igang med å broadcaste MasterQueue")
 			if err != nil {
 			    fmt.Println("error listening on UDP port ", portMasterQueue)
 			    fmt.Println(err)
 			    os.Exit(1)
 			}
-			//fmt.Println("detter er min IP",myIp)
-			
 			sendingObject := DataObject{"",masterQueue}
 			masterQueueLock <- 1
-			//fmt.Println("Slik ser sendingObject ut:",sendingObject)
 			jsonFile := struct2json(sendingObject)
 			broadcastSocket.Write(jsonFile)
 		default:
@@ -306,7 +280,6 @@ func removeDeadElevators(){
 	for{
 		<- masterQueueLock
 		n := len(masterQueue)
-		//fmt.Println("lengden på MasterQueue er:",n)
 		if n > 0{
 			for i,element:= range masterQueue{
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
@@ -318,8 +291,6 @@ func removeDeadElevators(){
 					break
 				}
 			}
-		}else{
-			//time.Sleep(50 * time.Millisecond)
 		}
 		masterQueueLock <- 1
 		time.Sleep(5 * time.Millisecond)		
