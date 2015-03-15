@@ -143,26 +143,31 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	                
 	    }
 	    fmt.Println("venter på MasterQueueLock")
-	    <- masterQueueLock
-	   // fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
-	    fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
-	   	if n > 0 && !IsMaster {
-	   		fmt.Println(n)
-	       	structObject := json2struct(bufferToRead,n)
-	       	
-	       	MasterQueue = structObject.MasterQueue
-	       	fmt.Println("MasterQueue på sneeky sted:",MasterQueue)
-	       	if !IsBackup && len(MasterQueue) > 1 {
-	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(MasterQueue),"MyIp er:",MyIp, "den" )
-	       		if MasterQueue[1].Ip == MyIp{
-	       			fmt.Println("lengden på køen er:",len(MasterQueue))
-	       			isBackupChan <- true
-	       		}
-	       	}
-	       	
-	       	 	   		 
-	    }
-	   masterQueueLock <- 1
+	    select{
+	    case <- masterQueueLock:
+		   // fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
+		    fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
+		   	if n > 0 && !IsMaster {
+		   		fmt.Println(n)
+		       	structObject := json2struct(bufferToRead,n)
+		       	
+		       	MasterQueue = structObject.MasterQueue
+		       	fmt.Println("MasterQueue på sneeky sted:",MasterQueue)
+		       	if !IsBackup && len(MasterQueue) > 1 {
+		       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(MasterQueue),"MyIp er:",MyIp, "den" )
+		       		if MasterQueue[1].Ip == MyIp{
+		       			fmt.Println("lengden på køen er:",len(MasterQueue))
+		       			isBackupChan <- true
+		       		}
+		       	}
+		       	
+		       	 	   		 
+	    	}
+	  	 	masterQueueLock <- 1
+	  	 	time.Sleep(50 * time.Millisecond)
+	  	default:
+	  		time.Sleep(50 * time.Millisecond)
+	  	}
    
 	}
 }
