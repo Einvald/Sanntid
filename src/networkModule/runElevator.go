@@ -96,7 +96,7 @@ func broadcastIp(ipBroadcast string, portIp string){
 		broadcastSocket.Write(jsonFile)
 
 		
-		time.Sleep(50*time.Millisecond)	
+		//time.Sleep(50*time.Millisecond)	
 
 
 	}	
@@ -208,7 +208,7 @@ func updateElevators(recieveIpChan chan string) {
 
 		default:
 			fmt.Println("går i default")
-			time.Sleep(50 * time.Millisecond)
+			//time.Sleep(50 * time.Millisecond)
 				
 		}
 		
@@ -275,24 +275,27 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 	}
 	broadcastSocket, err := net.DialUDP("udp",nil, udpAddr)
 	for {
-		<- masterQueueLock
-		//fmt.Println("Er igang med å broadcaste")
-		fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
-		//fmt.Println("er igang med å broadcaste MasterQueue")
-		if err != nil {
-		    fmt.Println("error listening on UDP port ", portMasterQueue)
-		    fmt.Println(err)
-		    os.Exit(1)
-		}
-		//fmt.Println("detter er min IP",MyIp)
-		
-		sendingObject := DataObject{"",MasterQueue}
-		masterQueueLock <- 1
-		//fmt.Println("Slik ser sendingObject ut:",sendingObject)
-		jsonFile := struct2json(sendingObject)
-		broadcastSocket.Write(jsonFile)
+		select{
+		case <- masterQueueLock:
+			//fmt.Println("Er igang med å broadcaste")
+			fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
+			//fmt.Println("er igang med å broadcaste MasterQueue")
+			if err != nil {
+			    fmt.Println("error listening on UDP port ", portMasterQueue)
+			    fmt.Println(err)
+			    os.Exit(1)
+			}
+			//fmt.Println("detter er min IP",MyIp)
+			
+			sendingObject := DataObject{"",MasterQueue}
+			masterQueueLock <- 1
+			//fmt.Println("Slik ser sendingObject ut:",sendingObject)
+			jsonFile := struct2json(sendingObject)
+			broadcastSocket.Write(jsonFile)
+		default:
+			time.Sleep(100 * time.Millisecond)
 
-		
+		}
 			
 
 
@@ -319,7 +322,7 @@ func removeDeadElevators(){
 			time.Sleep(50 * time.Millisecond)
 		}
 		masterQueueLock <- 1
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
