@@ -9,11 +9,13 @@ import (
 
 // Den nyoppstartede heisen får MasterQueue fra Master, og gjør seg selv til Master, Backup eller ingen av delene. Man blir ikke selv lagt til i MasterQueue enda
 
-func InitializeElevator() { 
+func InitializeElevator() {
+	masterQueueLock <- 1 
 	portMasterQueue := "20019"
 	MyIp = getIpAddr()
 	fmt.Println("2her kommer min IP",MyIp)
-	isEmpty := setMasterQueue(portMasterQueue) 
+	isEmpty := setMasterQueue(portMasterQueue)
+	<- masterQueueLock 
 	if isEmpty{
 		fmt.Println("jeg er Master")
 		IsMaster = true 
@@ -24,7 +26,7 @@ func InitializeElevator() {
 		fmt.Println("jeg er Backup. Backup =",IsBackup)
 	}
 	
-	
+	masterQueueLock <- 1
 }
 
 func getIpAddr() string {
@@ -80,7 +82,9 @@ func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNum
        	fmt.Println("printer melding vi leste over UDP",json2struct(bufferToRead,n))  
         structObject := DataObject{} 
         structObject = json2struct(bufferToRead,n)
+        <- masterQueueLock
        	MasterQueue = structObject.MasterQueue
+       	masterQueueLock <- 1
        	return false
        		 
    }

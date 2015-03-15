@@ -29,6 +29,7 @@ var MasterQueue = [] IpObject {} // Er det egentlig lurt at disse er public?
 var IsMaster = false
 var IsBackup = false
 var MyIp string 			
+var masterQueueLock = make(chan int, 1);
 
 func RunElevator(){
 	ipBroadcast := "129.241.187.255"
@@ -37,7 +38,7 @@ func RunElevator(){
 	recieveIpChan := make(chan string,1024) 
 	isMasterChan := make(chan bool,1)
 	isBackupChan := make(chan bool,1)
-	
+	//masterQueueLock <- 1
 	 //Trenger egentlig ikke ipBroadcast her fordi den leser kun fra egen port // obs 0
 	go updateMasterQueue(portMasterQueue,isMasterChan, isBackupChan)
 	go broadcastIp(ipBroadcast,portIp) // Fungerer også som Imalive
@@ -141,25 +142,27 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	        isMasterChan <- true
 	                
 	    }
-	    
+	    fmt.Println("venter på MasterQueueLock")
+	    <- masterQueueLock
 	   // fmt.Println("got message from ", UDPadr, " with n = ", n,"det er MasterQueue")
 	    fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
 	   	if n > 0 && !IsMaster {
 	   		fmt.Println(n)
 	       	structObject := json2struct(bufferToRead,n)
+	       	
 	       	MasterQueue = structObject.MasterQueue
-	       	temp := MasterQueue
-	       	fmt.Println("MasterQueue på sneeky sted:",temp)
-	       	if !IsBackup && len(temp) > 1 {
-	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(temp),"MyIp er:",MyIp, "den" )
-	       		if temp[1].Ip == MyIp{
-	       			fmt.Println("lengden på køen er:",len(temp))
+	       	fmt.Println("MasterQueue på sneeky sted:",MasterQueue)
+	       	if !IsBackup && len(MasterQueue) > 1 {
+	       		fmt.Println ("jeg er hverken Master eller Bacckup", "lengden på køen er:",len(MasterQueue),"MyIp er:",MyIp, "den" )
+	       		if MasterQueue[1].Ip == MyIp{
+	       			fmt.Println("lengden på køen er:",len(MasterQueue))
 	       			isBackupChan <- true
 	       		}
 	       	}
+	       	
 	       	 	   		 
 	    }
-	   
+	   masterQueueLock <- 1
    
 	}
 }
@@ -173,6 +176,7 @@ func updateElevators(recieveIpChan chan string) {
 			case newIpObject:= <- recieveIpChan:
 				fmt.Println("leste fra kanal")
 				index := 0
+				<- masterQueueLock
 				for i,element:= range MasterQueue{
 					if element.Ip == newIpObject{
 						allreadyInQueue = true
@@ -182,9 +186,11 @@ func updateElevators(recieveIpChan chan string) {
 					}
 				}
 				
+				
 				if allreadyInQueue && IsMaster{
 					deadline := time.Now().UnixNano() / int64(time.Millisecond) + 2000
 					MasterQueue[index].Deadline = deadline
+
 					fmt.Println("har endret ")
 
 				}
@@ -193,10 +199,12 @@ func updateElevators(recieveIpChan chan string) {
 					object := IpObject {newIpObject,deadline}
 					MasterQueue = append(MasterQueue,object)	
 				}
+				masterQueueLock <- 1
 
 		default:
 			fmt.Println("går i default")
-			time.Sleep(50*time.Millisecond)	
+			time.Sleep(50 * time.Millisecond)
+				
 		}
 		
 		
@@ -262,6 +270,7 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 	}
 	broadcastSocket, err := net.DialUDP("udp",nil, udpAddr)
 	for {
+		<- masterQueueLock
 		//fmt.Println("Er igang med å broadcaste")
 		fmt.Println("Masterqueue =",MasterQueue,"IsMaster=",IsMaster,"IsBackup=",IsBackup)
 		//fmt.Println("er igang med å broadcaste MasterQueue")
@@ -271,7 +280,9 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 		    os.Exit(1)
 		}
 		//fmt.Println("detter er min IP",MyIp)
+		
 		sendingObject := DataObject{"",MasterQueue}
+		masterQueueLock <- 1
 		//fmt.Println("Slik ser sendingObject ut:",sendingObject)
 		jsonFile := struct2json(sendingObject)
 		broadcastSocket.Write(jsonFile)
@@ -285,23 +296,25 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 
 func removeDeadElevators(){ 
 	for{
-		tempQueue := MasterQueue
-		n := len(tempQueue)
+		<- masterQueueLock
+		n := len(MasterQueue)
 		fmt.Println("lengden på MasterQueue er:",n)
 		if n > 0{
-			for i,element:= range tempQueue{
+			for i,element:= range MasterQueue{
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 				if timeNow > element.Deadline && element.Ip != MyIp{
 					fmt.Println("fjerner død heis")
-					newMasterQueue :=tempQueue[0:i]
-					newMasterQueue = append(newMasterQueue,tempQueue[i+1:n]...)
+					newMasterQueue :=MasterQueue[0:i]
+					newMasterQueue = append(newMasterQueue,MasterQueue[i+1:n]...)
 					MasterQueue = newMasterQueue
 					break
 				}
 			}
 		}else{
 			time.Sleep(50 * time.Millisecond)
-		}	
+		}
+		masterQueueLock <- 1
+		time.Sleep(50 * time.Millisecond)
 	}
 }
 
