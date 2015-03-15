@@ -12,21 +12,23 @@ import (
 func InitializeElevator() {
 	masterQueueLock <- 1 
 	portMasterQueue := "20019"
-	MyIp = getIpAddr()
-	fmt.Println("2her kommer min IP",MyIp)
+	myIp = getIpAddr()
+	fmt.Println("2her kommer min IP",myIp)
 	isEmpty := setMasterQueue(portMasterQueue)
 	<- masterQueueLock 
 	if isEmpty{
 		fmt.Println("jeg er Master")
-		IsMaster = true 
+		isMaster = true 
 	}
-	fmt.Println("lengden på MasterQueue er",len(MasterQueue))
-	if len(MasterQueue)==1{
-		IsBackup = true
-		fmt.Println("jeg er Backup. Backup =",IsBackup)
+	fmt.Println("lengden på MasterQueue er",len(masterQueue))
+	if len(masterQueue)==1{
+		isBackup = true
+		fmt.Println("jeg er Backup. Backup =",isBackup)
 	}
 	
 	masterQueueLock <- 1
+
+	fmt.Println("Heisen med Ip:",myIp,"er nå initialisert. Følgende variabler er satt","isMaster=",isMaster,"isBackup=",isBackup,"MasterQueue=",masterQueue)
 }
 
 func getIpAddr() string {
@@ -76,14 +78,14 @@ func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNum
         return true
     }
     
-    fmt.Println("got message from ", UDPadr, " with n = ", n)
+    
 
    	if n > 0 {
-       	fmt.Println("printer melding vi leste over UDP",json2struct(bufferToRead,n))  
+       	//fmt.Println("printer melding vi leste over UDP",json2struct(bufferToRead,n))  
         structObject := DataObject{} 
         structObject = json2struct(bufferToRead,n)
         <- masterQueueLock
-       	MasterQueue = structObject.MasterQueue
+       	masterQueue = structObject.MasterQueue
        	masterQueueLock <- 1
        	return false
        		 
