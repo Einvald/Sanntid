@@ -49,6 +49,7 @@ func RunElevator(){
 			go updateElevators(recieveIpChan) //myIp Legges nå inn gjennom broadcastIP og updateM.Queue
 			go broadcastMasterQueue(ipBroadcast, portMasterQueue)									//Denne må lages. Fungerer som imAlive
 			go removeDeadElevators()
+			go handleOrdersInNetwork()
 			deadChan := make(chan int)
 			<-deadChan
 
