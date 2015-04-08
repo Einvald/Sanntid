@@ -25,7 +25,7 @@ type IpObject struct{
 	Deadline int64
 }
 	
-var masterQueue = [] IpObject {} // Er det egentlig lurt at disse er public?
+var masterQueue = [] IpObject {} 
 var isMaster = false
 var isBackup = false
 var myIp string 			
@@ -40,7 +40,7 @@ func RunElevator(){
 	isBackupChan := make(chan bool,1)
 	go updateMasterQueue(portMasterQueue,isMasterChan, isBackupChan)
 	go broadcastIp(ipBroadcast,portIp) // Fungerer også som Imalive
-	
+	go handleOrdersFromMaster()
 	for{
 		if isMaster{
 			fmt.Println("Er nå Master")
