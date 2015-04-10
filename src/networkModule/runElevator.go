@@ -1,6 +1,6 @@
 package networkModule
 
-//mangler broadcastMasterQueue og checkMasterAlive. Disse bør muligens flyttes til runElevator
+
 // Videre trenger vi å utvikle nettverksmodulen slik at heisene kan kommunisere mer direkte med hverandre. F.eks broaccaste bestillinger
 
 //Mtp goRoutines: Vi kaller heller connectElevator fra main og så kjører vi Runelevator som en goroutine slik at dette gjøres for allti.d
@@ -18,12 +18,14 @@ import (
 type DataObject struct {
 	NewIp string
 	MasterQueue [] IpObject
+	OrderMessage OrderData
 }
 
 type IpObject struct{
 	Ip string
 	Deadline int64
 }
+
 	
 var masterQueue = [] IpObject {} 
 var isMaster = false
@@ -40,7 +42,7 @@ func RunElevator(){
 	isBackupChan := make(chan bool,1)
 	go updateMasterQueue(portMasterQueue,isMasterChan, isBackupChan)
 	go broadcastIp(ipBroadcast,portIp) // Fungerer også som Imalive
-	go handleOrdersFromMaster()
+	//go handleOrdersFromMaster()
 	for{
 		if isMaster{
 			fmt.Println("Er nå Master")
@@ -49,7 +51,7 @@ func RunElevator(){
 			go updateElevators(recieveIpChan) //myIp Legges nå inn gjennom broadcastIP og updateM.Queue
 			go broadcastMasterQueue(ipBroadcast, portMasterQueue)									//Denne må lages. Fungerer som imAlive
 			go removeDeadElevators()
-			go handleOrdersInNetwork()
+			//go handleOrdersInNetwork()
 			deadChan := make(chan int)
 			<-deadChan
 
@@ -90,12 +92,9 @@ func broadcastIp(ipBroadcast string, portIp string){
 		    fmt.Println(err)
 		    os.Exit(1)
 		}
-		sendingObject := DataObject{myIp,[]IpObject {}}
+		sendingObject := DataObject{myIp,[]IpObject {},OrderData {}}
 		jsonFile := struct2json(sendingObject)
 		broadcastSocket.Write(jsonFile)
-
-		
-		
 
 
 	}	
@@ -263,7 +262,7 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 			    fmt.Println(err)
 			    os.Exit(1)
 			}
-			sendingObject := DataObject{"",masterQueue}
+			sendingObject := DataObject{"",masterQueue,OrderData{}}
 			masterQueueLock <- 1
 			jsonFile := struct2json(sendingObject)
 			broadcastSocket.Write(jsonFile)

@@ -18,6 +18,14 @@ type IpObject struct{
 	LastUpdated int64
 }
 
+type MessageType int 
+	const(
+	ORDER  = 0 + iota
+	COST 
+	ORDER_COMPLETE
+	REQUEST_AUCTION
+	)
+
 
 func main() {
 	deadline :=time.Now().UnixNano() / int64(time.Millisecond)
@@ -37,14 +45,15 @@ func main() {
 	per = append(per,kjau[1:3]...)
 
 	fmt.Println(per)
-	go test()
+	test()
 	//time.Sleep(10000 * time.Millisecond)
 	
 
 }
 
 func test() {
-	go test2()
+	//go test2()
+	fmt.Println ("cost",ORDER)
 	fmt.Println("test er ferdig")
 }
 
@@ -56,3 +65,4 @@ func test2 () {
 	}
 
 }
+

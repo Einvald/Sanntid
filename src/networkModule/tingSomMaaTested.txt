@@ -20,10 +20,15 @@ Hva er gjort:
 
 
 
-Hva skal gjøres:
+Hva skal gjøres/tenkes på:
 
-1. Gå igang med implementasjon av heisnettverket
-	1.2: Vi må diskuteres hvordan dette skal lages.
+1. Er det lurt å ha så mange globale varibaler, da tenker jeg mest på channels.
+2. Hva skjer om man starter en heis uten nettervker og så kobler den til. Får vi to mastere?
+3. Vi må lage funksjonalitet slik at hvis Master dør må også unfinishedOrders sendes videre
+4. Hvis en heis som sender en order til Master ikke får den samme broadcastet tilbake i løpet av kort tid må den ta bestillinigen selv
+5. Hvis en heis dør må dens bestillinger overtas av andre
+6. Hvor lang deadline trenger vi på linje 76 ish?
+7. Linje 112, vi finne ut hvordan vi skal velge port det skal sendes til.
 
 
 
