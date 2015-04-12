@@ -31,6 +31,7 @@ var SetCurrentFloorLampChan = make(chan int);//FloorIndicatorLamp);
 var SetButtonLampChan = make(chan ButtonLamp);
 var SetMotorChan = make(chan int)
 var SetTimerChan = make(chan bool, 1)
+
 var currentDirection = -1;
 var currentFloor = 1
 

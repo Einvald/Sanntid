@@ -4,7 +4,7 @@ import(
 	"fmt"
 	"math"
 	)
-
+var FinishedOrderChan = make (chan ButtonLamp, 1024);
 var queueUp  = [4] int {};
 var queueDown = [4] int {};
 var queueInElev = [4] int {};
@@ -56,8 +56,10 @@ func AddToQueue(floor int, buttonType int){
 func removeOrderFromQueue(floor int, buttonType int){
 	switch buttonType{
 		case 0:
+			if queueUp[floor] == floor{FinishedOrderChan <- ButtonLamp {floor, buttonType, 0};}
 			queueUp[floor] = -1;
 		case 1:
+			if queueDown[floor] == floor{FinishedOrderChan <- ButtonLamp {floor, buttonType, 0};}
 			queueDown[floor] = -1;
 		case 2:
 			queueInElev[floor] = -1;
@@ -125,7 +127,7 @@ func getQueue(buttonType int) [4] int{
 func getCostForOrder(floor int, buttonType int, currentDirection int, currentFloor int, currentState State) int {
 	cost := 0;
 	if currentState== IDLE {cost += (int(math.Abs(float64(floor - currentFloor))*3));} else if currentState == DOOR_OPEN{cost+=3;}
-	if currentState == DOOR_OPEN && ((currentDirection == 1 && buttonType == 0) || (currentDirection == -1 && buttonType == 1)) {return 0;}
+	if currentState == DOOR_OPEN && ((currentDirection == 1 && buttonType == 0) || (currentDirection == -1 && buttonType == 1)) && floor == currentFloor {return 0;}
 	switch currentDirection {
 		case 1:
 			switch buttonType {

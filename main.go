@@ -5,6 +5,7 @@ import(
 	d "driver"
 	elev "elev_handler"
 	"time"
+	net "networkModule"
 	)
 
 const N_FLOORS int = 4
@@ -32,6 +33,9 @@ func main() {
 	Floor_sensor_channel := make(chan int, 1);
 	Stop_button_signal_channel := make(chan bool,1);
 	Order_button_signal_channel := make(chan buttonOrder);
+	Order_from_master_channel := make(chan net.OrderData, 1);
+	r := net.OrderData {}
+	Order_from_master_channel <- r
 	i := d.Driver_init()
 	d.Driver_set_button_lamp(2, 0, 1);
 	d.Driver_set_motor_direction(-1);
@@ -40,7 +44,7 @@ func main() {
 	fmt.Println(i)
 	fmt.Println(elev.STOP)
 	go checkForInput(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
-	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
+	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel, Order_from_master_channel)
 	time.Sleep(100 * time.Millisecond);
 	go handleElevatorCommands();
 	elev.InitializeChanLocks();
@@ -52,7 +56,7 @@ func main() {
 	<- deadChan;
 }
 
-func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_channel chan bool, Order_button_signal_channel chan buttonOrder){
+func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_channel chan bool, Order_button_signal_channel chan buttonOrder, Order_from_master_channel chan net.OrderData){
 	for{
 		select {
 
@@ -63,18 +67,43 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 				fmt.Println("stop button pushed", stop_sensor);
 			case order:= <- Order_button_signal_channel:
 				d.Driver_set_button_lamp(order.buttonType, order.floor, ON);
-				if order.buttonType != 2 {fmt.Println("COST = ", elev.GetCostForOrder(order.floor, order.buttonType));}
-				if elev.CheckIfCurrentFloor(order.floor){
-					elev.AddToQueue(order.floor, order.buttonType);
-					elev.NewOrderToCurrentFloor();
-				}else if elev.CheckIfEmptyQueues(){
-					elev.AddToQueue(order.floor, order.buttonType)
-					elev.NewOrderInEmptyQueue();
-				}else {
-					elev.AddToQueue(order.floor, order.buttonType)
-				}
+				if order.buttonType != 2 {
+					fmt.Println("COST = ", elev.GetCostForOrder(order.floor, order.buttonType));
+					// net.sendOrderData(MÅ LAGE OBJEKTET HER), sendOrderData må gjøers public
+					orderData := net.OrderData {false, net.ORDER, 0, 1, true,"Hey"  }
+					//net.SendOrderData(orderData)
+					fmt.Println(orderData);
 
+				}else {
+					if elev.CheckIfCurrentFloor(order.floor){
+						elev.AddToQueue(order.floor, order.buttonType);
+						elev.NewOrderToCurrentFloor();
+					}else if elev.CheckIfEmptyQueues(){
+						elev.AddToQueue(order.floor, order.buttonType)
+						elev.NewOrderInEmptyQueue();
+					}else {
+						elev.AddToQueue(order.floor, order.buttonType)
+					}
+				}
 				
+
+			case orderData := <- Order_from_master_channel:
+				order := buttonOrder{}//orderData.Order;
+				if orderData.Type == net.ORDER{
+					if elev.CheckIfCurrentFloor(order.floor){
+						elev.AddToQueue(order.floor, order.buttonType);
+						elev.NewOrderToCurrentFloor();
+					}else if elev.CheckIfEmptyQueues(){
+						elev.AddToQueue(order.floor, order.buttonType)
+						elev.NewOrderInEmptyQueue();
+					}else {
+						elev.AddToQueue(order.floor, order.buttonType)
+					}
+				}else if orderData.Type == net.REQUEST_AUCTION{
+					//cost := elev.GetCostForOrder(order.floor, order.buttonType);
+					// net.SendOrderData(MÅ LAGE OBJEKTET HER)
+
+				}
 			case <- time.After(10* time.Millisecond):
 		}
 	}
@@ -139,13 +168,15 @@ func handleElevatorCommands(){
 				if turnOn{
 					fmt.Println("Lest fra SetTimerChan")
 					timeChan <- time.Now().UnixNano()/int64(time.Millisecond)
-					//go elev.DoorTimer(); //OBS!!! ER DET GREIT Å KJØRE EGEN TRÅD HER?
 					d.Driver_set_door_open_lamp(1);
 				} else{d.Driver_set_door_open_lamp(0);}
 		case buttonOrder  := <- elev.SetButtonLampChan:
 			order := elev.ButtonLamp {0, 0, 0};
 			order = buttonOrder
 			d.Driver_set_button_lamp(order.ButtonType, order.Floor, order.TurnOn);
+		case finishedOrder := <- elev.FinishedOrderChan:
+			fmt.Println(finishedOrder);
+			//net.SendOrderData(MÅ LEGGE INN ORDERTYPEN FOR FINISHED HER) sendOrdre om finished 
 		case <- time.After(10*time.Millisecond):
 
 		}
