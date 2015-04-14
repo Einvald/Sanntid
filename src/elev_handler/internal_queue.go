@@ -4,7 +4,7 @@ import(
 	"fmt"
 	"math"
 	)
-var FinishedOrderChan = make (chan ButtonLamp, 1024);
+var FinishedOrderChan = make (chan buttonOrder, 1024);
 var queueUp  = [4] int {};
 var queueDown = [4] int {};
 var queueInElev = [4] int {};
@@ -56,10 +56,10 @@ func AddToQueue(floor int, buttonType int){
 func removeOrderFromQueue(floor int, buttonType int){
 	switch buttonType{
 		case 0:
-			if queueUp[floor] == floor{FinishedOrderChan <- ButtonLamp {floor, buttonType, 0};}
+			if queueUp[floor] == floor{FinishedOrderChan <- buttonOrder {floor, buttonType};}
 			queueUp[floor] = -1;
 		case 1:
-			if queueDown[floor] == floor{FinishedOrderChan <- ButtonLamp {floor, buttonType, 0};}
+			if queueDown[floor] == floor{FinishedOrderChan <- buttonOrder {floor, buttonType};}
 			queueDown[floor] = -1;
 		case 2:
 			queueInElev[floor] = -1;

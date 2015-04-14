@@ -19,7 +19,10 @@ type FloorIndicatorLamp struct{
 	turnOn bool;
 }
 */
-
+type buttonOrder struct{
+	floor int;
+	buttonType int; 
+}
 type ButtonLamp struct{
 	Floor int;
 	ButtonType int;

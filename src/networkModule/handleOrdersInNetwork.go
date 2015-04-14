@@ -16,7 +16,6 @@ type OrderData struct {
 	Type MessageType
 	Cost int 
 	Order int //buttonOrder
-	OrderComplete bool // trenger vell ikke denne?
 	Ip string
 	
 
