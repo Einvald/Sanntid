@@ -15,7 +15,11 @@ type OrderData struct {
 	FromMaster bool
 	Type MessageType
 	Cost int 
+<<<<<<< HEAD
 	Order ButtonOrder
+=======
+	Order int //buttonOrder
+>>>>>>> origin/master
 	Ip string
 	
 
