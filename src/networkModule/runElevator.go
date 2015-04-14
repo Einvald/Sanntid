@@ -34,7 +34,7 @@ var isBackup = false
 var myIp string 			
 var masterQueueLock = make(chan int, 1);
 
-func RunElevator(){
+func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_master_chan chan OrderData){
 	portIp := "20017" //Her velges port som egen IP-adresse skal sendes og leses fra
 	portMasterData := "20019" //Her velges port som Masterqueue skal sendes og leses fra
 	recieveIpChan := make(chan string,1024) 
@@ -42,7 +42,9 @@ func RunElevator(){
 	isBackupChan := make(chan bool,1)
 	go updateMasterData(portMasterData,isMasterChan, isBackupChan)
 	go broadcastIp(IP_BROADCAST,portIp) // Fungerer også som Imalive
-	//go handleOrdersFromMaster()
+	go sendOrderDataToMaster(Order_data_to_master_chan)
+	go handleOrdersFromMaster(Order_data_from_master_chan)
+	
 	for{
 		if isMaster{
 			fmt.Println("Er nå Master")
@@ -51,6 +53,7 @@ func RunElevator(){
 			go updateElevators(recieveIpChan) //myIp Legges nå inn gjennom broadcastIP og updateM.Queue
 			go broadcastMasterData(IP_BROADCAST, portMasterData)									//Denne må lages. Fungerer som imAlive
 			go handleDeadElevators()
+			//go handleOrdersInNetwork()
 			deadChan := make(chan int)
 			<-deadChan
 
@@ -144,32 +147,29 @@ func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan 
 	                
 	    }
 	    
-	    select{
-	    case <- masterQueueLock:  //Her kan det være noe rart: Hvis master er død og masterQueueLocken ikke er mulig å ta vil den høre etter master på nytt. 
-		   	if n > 0 && !isMaster {		// Det betyr at vi potensielt kan bli ventende i lang tid før vi finner ut at Master er død! Kan vell lett fjerne selcetCasen?
-		       	structObject := json2struct(bufferToRead,n)
-		       	fmt.Println("Printer det jeg fikk over UDP",structObject)
-		       	masterQueue = structObject.MasterQueue
-		       	if isBackup{
-		       		//<- unfinishedOrdersLock
-		       		unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
-		       		//unfinishedOrdersLock <- 1
-		       	}
-		       	if !isBackup && len(masterQueue) > 1 {
-		       		if masterQueue[1].Ip == myIp{
-		       			isBackupChan <- true
-		       			fmt.Println("Nå er jeg backup")
-		       		}
-		       	}
-		       	
-		       	 	   		 
-	    	}
-	  	 	masterQueueLock <- 1
-	  	 	time.Sleep(5 * time.Millisecond)			
-	  	default:
-	  		time.Sleep(5 * time.Millisecond)		
-	  }
-   
+	 
+	    <- masterQueueLock   
+	   	if n > 0 && !isMaster {		
+	       	structObject := json2struct(bufferToRead,n)
+	       	fmt.Println("Printer det jeg fikk over UDP",structObject)
+	       	masterQueue = structObject.MasterQueue
+	       	if isBackup{
+	       		//<- unfinishedOrdersLock
+	       		unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
+	       		//unfinishedOrdersLock <- 1
+	       	}
+	       	if !isBackup && len(masterQueue) > 1 {
+	       		if masterQueue[1].Ip == myIp{
+	       			isBackupChan <- true
+	       			fmt.Println("Nå er jeg backup")
+	       		}
+	       	}
+	       	
+	       	 	   		 
+    	}
+  	 	masterQueueLock <- 1
+  	 	//time.Sleep(5 * time.Millisecond)			
+	  			
 	}
 }
 
@@ -320,7 +320,7 @@ func allocateElevatorOrders(deadElevator IpObject){   // Dette må vi diskutere
 	for _,element := range unfinishedOrders{
 		if element.Ip == deadElevator.Ip {
 
-			element.Type = Order
+			element.Type = ORDER
 			recievedOrderChan <- element
 			// Her må man starte en ny separat auksjon av alle bestillinger som ikke er tatt fra den døde heisen.
 		}

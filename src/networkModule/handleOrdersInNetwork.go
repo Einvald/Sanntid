@@ -15,8 +15,7 @@ type OrderData struct {
 	FromMaster bool
 	Type MessageType
 	Cost int 
-	Order int //buttonOrder
-	OrderComplete bool // trenger vell ikke denne?
+	Order ButtonOrder
 	Ip string
 	
 
@@ -31,7 +30,10 @@ type MessageType int
 	)
 
 
-
+type ButtonOrder struct {
+	Floor int
+	ButtonType int
+}
 
 
 
@@ -43,7 +45,7 @@ const IP_BROADCAST = "129.241.187.255"
 const BROADCAST_PORT = "20012"
 const SLAVE_TO_MASTER_PORT = "20013"
 const MASTER_TO_SLAVE_PORT = "20014"
-const lowestCost = 100 
+const COST_CEILING = 100 
 var unfinishedOrders = [] OrderData{}
 var recievedMessageToMaster = make(chan OrderData, 1024)
 var recievedMessage = make (chan OrderData,1024)
@@ -89,9 +91,8 @@ func handleOrdersInNetwork(){
 
 func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string, portSomSlaverLeserFra string){
 	<- auctionLock
-	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 500
+	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 200
 	elevatorsInAuction := [] OrderData {} 
-	//Sett deadline
 	newOrderData.Type = REQUEST_AUCTION
 	newOrderData.FromMaster = true  
 	sendOrderData(IP_BROADCAST,BROADCAST_PORT,newOrderData)  
@@ -114,7 +115,8 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 			break
 		}
 	}
-	
+	lowestCost := COST_CEILING
+	elevatorWithLowestCost := elevatorsInAuction[0]
 	for _,element:= range elevatorsInAuction{
 		if element.Cost < lowestCost{
 			lowestCost = element.Cost
@@ -131,22 +133,18 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 	auctionLock <- 1	
 }
 
-func handleOrdersFromMaster(){
-	go readOrderData() //Her må vi ta en eller to channels som input
+func handleOrdersFromMaster(Order_data_from_master_chan chan OrderData){
+	go readOrderData(MASTER_TO_SLAVE_PORT) //Her må vi ta en eller to channels som input
 	for {
 		select{
 		case recievedData := <- recievedMessage:
-			switch recievedData.Type{
-				case ORDER:
-					//Legges på channel som leses av main
+			Order_data_from_master_chan <-recievedData
+		default:
+			time.Sleep(5 * time.Millisecond)
 
-				case REQUEST_AUCTION:
-					// Legges på en annen channel som leses av main
-			}
+		}
 			
-	}	}
-
-
+	}	
 }
 
 func isInQueue(newOrderData OrderData) bool {
@@ -169,7 +167,6 @@ func addNewOrder(newOrderData OrderData){
 		unfinishedOrders = append(unfinishedOrders,newOrderData)
 	}
 }
-
 
 
 func removeOrder(orderComplete OrderData){
@@ -261,6 +258,22 @@ func sendOrderData(ip string, port string, message OrderData){	//Denne brukes b�
 	
 }
 
+func sendOrderDataToMaster(Order_data_to_master_chan chan OrderData){
+	for {
+		select {
+		case sendingObject := <- Order_data_to_master_chan:
+			sendingObject.Ip = myIp
+			<- masterQueueLock 
+			ip_master := masterQueue[0].Ip
+			masterQueueLock <-1
+			sendOrderData(ip_master,SLAVE_TO_MASTER_PORT,sendingObject)
+		default:
+			time.Sleep(5 * time.Millisecond)
+
+		
+		}
+	}
+}
 
 
 //Spør om lys skal lyse i alle på alle heispaneler hvis man bestemmer for eksempel ned fra 2. etasje?
