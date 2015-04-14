@@ -56,8 +56,6 @@ var recievedOrderComplete = make(chan OrderData, 1024)
 var auctionLock = make(chan int, 1)
 var unfinishedOrdersLock = make(chan int, 1)
 func handleOrdersInNetwork(){
-	
-	portSomSlaverLeserFra := "20013" // Her må vi gjøre endringer
 
 	unfinishedOrdersLock <- 1
 	auctionLock <- 1
@@ -65,40 +63,48 @@ func handleOrdersInNetwork(){
 	for {
 		select{
 		case recievedData := <- recievedMessageToMaster:
+			fmt.Println("INNE I HANDLEORDERSINNETWORK har mottat type: ", recievedData.Type)
 			switch recievedData.Type {
 				case COST:
+					fmt.Println("COST MOTTAT I MASTER")
 					recievedCostChan <- recievedData
 				case ORDER:
-					recievedOrderChan <- recievedData 
+					fmt.Println("FØR")
+					recievedOrderChan <- recievedData
+					fmt.Println("etter")
 				case ORDER_COMPLETE:
 					recievedOrderComplete <- recievedData
 			}
 		case order := <- recievedOrderChan:
+			fmt.Println(!isInQueue(order), "  IS IN QUEUE CHECK")
 			if !isInQueue(order){
-				go auction(order,IP_BROADCAST,BROADCAST_PORT,portSomSlaverLeserFra)   
-				
+				fmt.Println("RecievedOrderChan er nå blitt lest ", order)
+				go auction(order,IP_BROADCAST,BROADCAST_PORT,MASTER_TO_SLAVE_PORT)   
 			}
-			
 			// Sjekk om finnes i liste. Legg til hvis ikke
 		case orderComplete := <- recievedOrderComplete:
 			<- unfinishedOrdersLock 
 			removeOrder(orderComplete)
 			unfinishedOrdersLock <- 1
 		}
+		
 	}
 
 }
 
 func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string, portSomSlaverLeserFra string){
 	<- auctionLock
+	fmt.Println("AUCTION I GANG")
 	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 200
 	elevatorsInAuction := [] OrderData {} 
 	newOrderData.Type = REQUEST_AUCTION
 	newOrderData.FromMaster = true  
+	fmt.Println("AUCTION FØR SENDORDERDATA")
 	sendOrderData(IP_BROADCAST,BROADCAST_PORT,newOrderData)  
 	for {
 		select{
 		case cost := <- recievedCostChan:
+			fmt.Println("COST IS RECIEVED!")
 			allreadyInList := false
 			for _,element:= range elevatorsInAuction{
 				if element == cost{			
@@ -117,6 +123,7 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 	}
 	lowestCost := COST_CEILING
 	elevatorWithLowestCost := elevatorsInAuction[0]
+	fmt.Println("AUCTIONCHECK", elevatorWithLowestCost)
 	for _,element:= range elevatorsInAuction{
 		if element.Cost < lowestCost{
 			lowestCost = element.Cost
@@ -153,11 +160,13 @@ func isInQueue(newOrderData OrderData) bool {
 	<- unfinishedOrdersLock
 	allreadyInList := false
 	for _,element:= range unfinishedOrders{
+		fmt.Println(element.Order, " ", newOrder, "   BALLLUBA")
 		if element.Order == newOrder{			
 			allreadyInList = true
 			break
 		}
 	}
+	unfinishedOrdersLock <- 1
 	return allreadyInList
 
 }
@@ -221,6 +230,7 @@ func readOrderData(port string){
             
             }else if !data.FromMaster{
             	recievedMessageToMaster <- data
+            	fmt.Println("RECIEVEDMESSAGE TO MASTER CHANNEL IS SET")
             } 
             
         }
@@ -231,6 +241,7 @@ func readOrderData(port string){
 
 
 func sendOrderData(ip string, port string, message OrderData){	//Denne brukes både til å sende enkle meldinger, men også broadcasting
+	fmt.Println("SENDER ER SATT I GANG, FÅ GANG OG MOTTA! ", ip, " ", port, " ", message)
 	udpAddr, err := net.ResolveUDPAddr("udp",ip+":"+port)
 	if err != nil {
 		fmt.Println("error resolving UDP address on ", port)
@@ -263,11 +274,16 @@ func sendOrderDataToMaster(Order_data_to_master_chan chan OrderData){
 	for {
 		select {
 		case sendingObject := <- Order_data_to_master_chan:
+			fmt.Println("Inne i send Order to Master")
 			sendingObject.Ip = myIp
 			<- masterQueueLock 
-			ip_master := masterQueue[0].Ip
+			if len(masterQueue)>0 {
+				ip_master := masterQueue[0].Ip
+				
+				sendOrderData(ip_master,SLAVE_TO_MASTER_PORT,sendingObject)
+				fmt.Println("Sendt order data to master")
+			}
 			masterQueueLock <-1
-			sendOrderData(ip_master,SLAVE_TO_MASTER_PORT,sendingObject)
 		default:
 			time.Sleep(5 * time.Millisecond)
 

@@ -56,9 +56,10 @@ func handleInputChannels(Floor_sensor_channel chan int, Stop_button_signal_chann
 			case order:= <- Order_button_signal_channel:
 				d.Driver_set_button_lamp(order.ButtonType, order.Floor, ON);
 				if order.ButtonType != 2 {
-					
-					fmt.Println("COST = ", elev.GetCostForOrder(order.Floor, order.ButtonType));
+
+					//fmt.Println("COST = ", elev.GetCostForOrder(order.Floor, order.ButtonType));
 					orderData := net.OrderData {false, net.ORDER, order, 0, " "}
+					fmt.Println("Sender bestilling på channel!")
 					Order_data_to_master_channel<-orderData;
 				}else {
 					if elev.CheckIfCurrentFloor(order.Floor){
@@ -72,6 +73,7 @@ func handleInputChannels(Floor_sensor_channel chan int, Stop_button_signal_chann
 					}
 				}
 			case orderData := <- Order_data_from_master_channel:
+				fmt.Println("MOTTAT DATA FRA MASTER")
 				order := orderData.Order;
 				if orderData.Type == net.ORDER{
 					if elev.CheckIfCurrentFloor(order.Floor){
@@ -87,6 +89,7 @@ func handleInputChannels(Floor_sensor_channel chan int, Stop_button_signal_chann
 					cost := elev.GetCostForOrder(order.Floor, order.ButtonType);
 					orderData := net.OrderData {false, net.COST, net.ButtonOrder{}, cost, ""}
 					Order_data_to_master_channel <- orderData;
+					fmt.Println("COST ER BLITT SENDT MADDAFAKAC")
 				}
 			case <- time.After(10* time.Millisecond):
 		}
