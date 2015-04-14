@@ -14,8 +14,8 @@ import (
 type OrderData struct {
 	FromMaster bool
 	Type MessageType
-	Cost int 
 	Order ButtonOrder
+	Cost int 
 	Ip string
 	
 

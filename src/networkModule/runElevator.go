@@ -53,8 +53,14 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 			go updateElevators(recieveIpChan) //myIp Legges nå inn gjennom broadcastIP og updateM.Queue
 			go broadcastMasterData(IP_BROADCAST, portMasterData)									//Denne må lages. Fungerer som imAlive
 			go handleDeadElevators()
-			//go handleOrdersInNetwork()
+			go handleOrdersInNetwork()
 			deadChan := make(chan int)
+			time.Sleep(3000 * time.Millisecond)
+			fmt.Println("MAsterqueu1:",masterQueue)
+			time.Sleep(3000 * time.Millisecond)
+			fmt.Println("MAsterqueu2:",masterQueue)
+			time.Sleep(3000 * time.Millisecond)
+			fmt.Println("MAsterqueu3:",masterQueue)
 			<-deadChan
 
 		}else if isBackup {
