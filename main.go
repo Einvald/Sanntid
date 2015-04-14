@@ -13,7 +13,7 @@ const N_BUTTONS int = 3
 const ON = 1
 const OFF = 0
 
-type buttonOrder struct{
+type buttonOrder struct{ //må potensielt bli laget med store bokstaver 
 	floor int;
 	buttonType int;
 }
@@ -25,14 +25,12 @@ type ButtonLamp struct{
 	turnOn int;
 }
 */
-
 func main() {
 	Floor_sensor_channel := make(chan int, 1);
 	Stop_button_signal_channel := make(chan bool,1);
 	Order_button_signal_channel := make(chan buttonOrder);
-	Order_from_master_channel := make(chan net.OrderData, 1);
-	r := net.OrderData {}
-	Order_from_master_channel <- r
+	Order_data_to_master_channel := make(chan net.OrderData, 1024);
+	Order_data_from_master_channel := make(chan net.OrderData, 1024);
 	i := d.Driver_init()
 	d.Driver_set_button_lamp(2, 0, 1);
 	d.Driver_set_motor_direction(-1);
@@ -41,22 +39,19 @@ func main() {
 	fmt.Println(i)
 	fmt.Println(elev.STOP)
 	go checkForInput(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel)
-	go readFromInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel, Order_from_master_channel)
+	go handleInputChannels(Floor_sensor_channel, Stop_button_signal_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel)
 	time.Sleep(100 * time.Millisecond);
-	go handleElevatorCommands();
+	go handleElevatorCommands(Order_data_to_master_channel);
 	elev.InitializeChanLocks();
-	//go read
-	fmt.Println(masterQueue);
-	fmt.Println(temp);
+	//go runElevator(Order_data_to_master_channel, Order_data_from_master_channel)
 	
 	deadChan := make(chan int);
 	<- deadChan;
 }
 
-func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_channel chan bool, Order_button_signal_channel chan buttonOrder, Order_from_master_channel chan net.OrderData){
+func handleInputChannels(Floor_sensor_channel chan int, Stop_button_signal_channel chan bool, Order_button_signal_channel chan buttonOrder, Order_data_from_master_channel chan net.OrderData, Order_data_to_master_channel chan net.OrderData){
 	for{
 		select {
-
 			case floor:= <-Floor_sensor_channel:
 				elev.FloorReached(floor);
 			case stop_sensor := <- Stop_button_signal_channel:
@@ -66,11 +61,8 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 				d.Driver_set_button_lamp(order.buttonType, order.floor, ON);
 				if order.buttonType != 2 {
 					fmt.Println("COST = ", elev.GetCostForOrder(order.floor, order.buttonType));
-					// net.sendOrderData(MÅ LAGE OBJEKTET HER), sendOrderData må gjøers public
-					orderData := net.OrderData {false, net.ORDER, 0, 1, true,"Hey"  }
-					//net.SendOrderData(orderData)
-					fmt.Println(orderData);
-
+					orderData := net.OrderData {false, net.ORDER, order, 0, " "}
+					Order_data_to_master_channel<-orderData;
 				}else {
 					if elev.CheckIfCurrentFloor(order.floor){
 						elev.AddToQueue(order.floor, order.buttonType);
@@ -82,10 +74,8 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 						elev.AddToQueue(order.floor, order.buttonType)
 					}
 				}
-				
-
-			case orderData := <- Order_from_master_channel:
-				order := buttonOrder{}//orderData.Order;
+			case orderData := <- Order_data_from_master_channel:
+				order := orderData.Order;
 				if orderData.Type == net.ORDER{
 					if elev.CheckIfCurrentFloor(order.floor){
 						elev.AddToQueue(order.floor, order.buttonType);
@@ -97,8 +87,8 @@ func readFromInputChannels(Floor_sensor_channel chan int, Stop_button_signal_cha
 						elev.AddToQueue(order.floor, order.buttonType)
 					}
 				}else if orderData.Type == net.REQUEST_AUCTION{
-					//cost := elev.GetCostForOrder(order.floor, order.buttonType);
-					// net.SendOrderData(MÅ LAGE OBJEKTET HER)
+					cost := elev.GetCostForOrder(order.floor, order.buttonType);
+					orderData := OrderData {false, COST, buttonOrder{}, cost, ""}
 
 				}
 			case <- time.After(10* time.Millisecond):
@@ -147,7 +137,7 @@ func checkForInput(Floor_sensor_channel chan int, Stop_button_signal_channel cha
 		
 }
 
-func handleElevatorCommands(){
+func handleElevatorCommands(Order_data_to_master_channel chan net.OrderData){
 	timeChan := make(chan int64);
 	go elev.DoorTimer(timeChan);
 	for {
@@ -172,15 +162,10 @@ func handleElevatorCommands(){
 			order = buttonOrder
 			d.Driver_set_button_lamp(order.ButtonType, order.Floor, order.TurnOn);
 		case finishedOrder := <- elev.FinishedOrderChan:
-			fmt.Println(finishedOrder);
-			//net.SendOrderData(MÅ LEGGE INN ORDERTYPEN FOR FINISHED HER) sendOrdre om finished 
+			orderData := OrderData{false, ORDER_COMPLETE, finishedOrder, 0, " "}
+			Order_data_to_master_channel <- orderData;
 		case <- time.After(10*time.Millisecond):
 
 		}
 	}
 }
-
-/*func readFromNetwork() {
-	
-}
-*/
