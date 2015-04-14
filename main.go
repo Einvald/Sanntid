@@ -17,7 +17,7 @@ type buttonOrder struct{
 	floor int;
 	buttonType int;
 }
-var masterQueue = [] int {};
+
 /*
 type ButtonLamp struct{
 	floor int;
@@ -27,9 +27,6 @@ type ButtonLamp struct{
 */
 
 func main() {
-	masterQueue =append(masterQueue,1);
-	masterQueue =append(masterQueue,2);
-	temp := masterQueue[0:0];
 	Floor_sensor_channel := make(chan int, 1);
 	Stop_button_signal_channel := make(chan bool,1);
 	Order_button_signal_channel := make(chan buttonOrder);
@@ -48,7 +45,7 @@ func main() {
 	time.Sleep(100 * time.Millisecond);
 	go handleElevatorCommands();
 	elev.InitializeChanLocks();
-
+	//go read
 	fmt.Println(masterQueue);
 	fmt.Println(temp);
 	

@@ -31,15 +31,19 @@ type MessageType int
 	)
 
 
-// Trenger å bestemme hvor Master skal lese orders. Skal det skje i handleOrdersInNetwork som en goroutine eller i runElevator?
-// Må diskutere hvordan døde heisers bestillinger skal håndteres. Se funksjon på runElevator
-// Må bestemme port som slave skal lese fra
-// Må finne hva maksimal kost kan være ish?
+
+
+
+
 // Trenger funksjonalitet til: Hvis ikke bestillingen mottas av Master må den tas selv
 // Diskuter deadlocks knyttet til unfinishedOrdersLock
 //Diskuter kommentar linje 147 runElevator
 
-
+const IP_BROADCAST = "129.241.187.255"
+const BROADCAST_PORT = "20012"
+const SLAVE_TO_MASTER_PORT = "20013"
+const MASTER_TO_SLAVE_PORT = "20014"
+const lowestCost = 100 
 var unfinishedOrders = [] OrderData{}
 var recievedMessageToMaster = make(chan OrderData, 1024)
 var recievedMessage = make (chan OrderData,1024)
@@ -50,11 +54,12 @@ var recievedOrderComplete = make(chan OrderData, 1024)
 var auctionLock = make(chan int, 1)
 var unfinishedOrdersLock = make(chan int, 1)
 func handleOrdersInNetwork(){
-	const IP_BROADCAST = "129.241.187.255"
-	const BROADCAST_PORT = "20012" 
+	
 	portSomSlaverLeserFra := "20013" // Her må vi gjøre endringer
+
 	unfinishedOrdersLock <- 1
 	auctionLock <- 1
+	go readOrderData(SLAVE_TO_MASTER_PORT)
 	for {
 		select{
 		case recievedData := <- recievedMessageToMaster:
@@ -74,8 +79,9 @@ func handleOrdersInNetwork(){
 			
 			// Sjekk om finnes i liste. Legg til hvis ikke
 		case orderComplete := <- recievedOrderComplete:
-			removeFinishedOrder(orderComplete)
-			// Sett bit på channel
+			<- unfinishedOrdersLock 
+			removeOrder(orderComplete)
+			unfinishedOrdersLock <- 1
 		}
 	}
 
@@ -86,7 +92,8 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 500
 	elevatorsInAuction := [] OrderData {} 
 	//Sett deadline
-	newOrderData.Type = 3  
+	newOrderData.Type = REQUEST_AUCTION
+	newOrderData.FromMaster = true  
 	sendOrderData(IP_BROADCAST,BROADCAST_PORT,newOrderData)  
 	for {
 		select{
@@ -107,8 +114,7 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 			break
 		}
 	}
-	lowestCost := 100000000  //Denne må kanskje settes høyere?
-	elevatorWithLowestCost := elevatorsInAuction[0]
+	
 	for _,element:= range elevatorsInAuction{
 		if element.Cost < lowestCost{
 			lowestCost = element.Cost
@@ -116,13 +122,17 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 		}
 
 	}
+	<- unfinishedOrdersLock 
 	addNewOrder(elevatorWithLowestCost)
-	elevatorWithLowestCost.Type = 0
+	unfinishedOrdersLock <- 1
+	elevatorWithLowestCost.Type = ORDER
+	elevatorWithLowestCost.FromMaster = true
 	sendOrderData(elevatorWithLowestCost.Ip,portSomSlaverLeserFra,elevatorWithLowestCost) // Porten her må bestemmes eksternt!!
 	auctionLock <- 1	
 }
 
-func handleOrdersFromMaster(){ //Her må vi ta en eller to channels som input
+func handleOrdersFromMaster(){
+	go readOrderData() //Her må vi ta en eller to channels som input
 	for {
 		select{
 		case recievedData := <- recievedMessage:
@@ -153,20 +163,17 @@ func isInQueue(newOrderData OrderData) bool {
 
 }
 //Funksjoner master bruker	
-func addNewOrder(newOrderData OrderData){
-	<- unfinishedOrdersLock 
+func addNewOrder(newOrderData OrderData){ 
 	allreadyInList := isInQueue (newOrderData)
 	if !allreadyInList {
 		unfinishedOrders = append(unfinishedOrders,newOrderData)
 	}
-	unfinishedOrdersLock <- 1
 }
 
 
 
-func removeFinishedOrder(orderComplete OrderData){
+func removeOrder(orderComplete OrderData){
 	order2Remove := orderComplete.Order
-	<- unfinishedOrdersLock
 	for i,element:= range unfinishedOrders{
 		if element.Order == order2Remove{
 			n := len (unfinishedOrders)			
@@ -175,9 +182,7 @@ func removeFinishedOrder(orderComplete OrderData){
 			unfinishedOrders = newUnfinishedOrders
 			break
 		}
-	unfinishedOrdersLock <- 1
 	}
-
 }
 
 // Lag funksjonalitet for døde heiser, hvordan dens bestillinger skal fordeles osv.
