@@ -15,11 +15,7 @@ type OrderData struct {
 	FromMaster bool
 	Type MessageType
 	Cost int 
-<<<<<<< HEAD
 	Order ButtonOrder
-=======
-	Order int //buttonOrder
->>>>>>> origin/master
 	Ip string
 	
 
@@ -126,7 +122,8 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 			lowestCost = element.Cost
 			elevatorWithLowestCost = element
 		}
-
+	
+	
 	}
 	<- unfinishedOrdersLock 
 	addNewOrder(elevatorWithLowestCost)
@@ -138,7 +135,7 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 }
 
 func handleOrdersFromMaster(Order_data_from_master_chan chan OrderData){
-	go readOrderData(MASTER_TO_SLAVE_PORT) //Her må vi ta en eller to channels som input
+	go readOrderData(MASTER_TO_SLAVE_PORT) 
 	for {
 		select{
 		case recievedData := <- recievedMessage:
