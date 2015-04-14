@@ -19,6 +19,7 @@ type DataObject struct {
 	NewIp string
 	MasterQueue [] IpObject
 	OrderMessage OrderData
+	UnfinishedOrders [] OrderData
 }
 
 type IpObject struct{
@@ -36,11 +37,11 @@ var masterQueueLock = make(chan int, 1);
 func RunElevator(){
 	ipBroadcast := "129.241.187.255"
 	portIp := "20017" //Her velges port som egen IP-adresse skal sendes og leses fra
-	portMasterQueue := "20019" //Her velges port som Masterqueue skal sendes og leses fra
+	portMasterData := "20019" //Her velges port som Masterqueue skal sendes og leses fra
 	recieveIpChan := make(chan string,1024) 
 	isMasterChan := make(chan bool,1)
 	isBackupChan := make(chan bool,1)
-	go updateMasterQueue(portMasterQueue,isMasterChan, isBackupChan)
+	go updateMasterData(portMasterData,isMasterChan, isBackupChan)
 	go broadcastIp(ipBroadcast,portIp) // Fungerer også som Imalive
 	//go handleOrdersFromMaster()
 	for{
@@ -49,9 +50,10 @@ func RunElevator(){
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			go listenForActiveElevators(portIp,recieveIpChan)
 			go updateElevators(recieveIpChan) //myIp Legges nå inn gjennom broadcastIP og updateM.Queue
-			go broadcastMasterQueue(ipBroadcast, portMasterQueue)									//Denne må lages. Fungerer som imAlive
-			go removeDeadElevators()
+			go broadcastMasterData(ipBroadcast, portMasterData)									//Denne må lages. Fungerer som imAlive
+			go handleDeadElevators()
 			//go handleOrdersInNetwork()
+			//
 			deadChan := make(chan int)
 			<-deadChan
 
@@ -92,9 +94,10 @@ func broadcastIp(ipBroadcast string, portIp string){
 		    fmt.Println(err)
 		    os.Exit(1)
 		}
-		sendingObject := DataObject{myIp,[]IpObject {},OrderData {}}
+		sendingObject := DataObject{myIp,[]IpObject {},OrderData {},[]OrderData {} }
 		jsonFile := struct2json(sendingObject)
 		broadcastSocket.Write(jsonFile)
+
 
 
 	}	
@@ -112,11 +115,11 @@ func json2struct(jsonObject []byte,n int) DataObject{
 	return structObject
 }
 
-func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupChan chan bool){
-	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue) //muligens "" istedet for myIp
+func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan chan bool){
+	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterData) //muligens "" istedet for myIp
 
 	if err != nil {
-                fmt.Println("error resolving UDP address on ", portMasterQueue)
+                fmt.Println("error resolving UDP address on ", portMasterData)
                 fmt.Println(err)
                 os.Exit(1)
     }
@@ -124,7 +127,7 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
     readerSocket ,err := net.ListenUDP("udp",UDPadr)
     
     if err != nil {
-            fmt.Println("error listening on UDP port ", portMasterQueue)
+            fmt.Println("error listening on UDP port ", portMasterData)
             fmt.Println(err)
             os.Exit(1)
 	}
@@ -142,12 +145,17 @@ func updateMasterQueue(portMasterQueue string,isMasterChan chan bool,isBackupCha
 	    }
 	    
 	    select{
-	    case <- masterQueueLock:
-		   	if n > 0 && !isMaster {
+	    case <- masterQueueLock:  //Her kan det være noe rart: Hvis master er død og masterQueueLocken ikke er mulig å ta vil den høre etter master på nytt. 
+		   	if n > 0 && !isMaster {		// Det betyr at vi potensielt kan bli ventende i lang tid før vi finner ut at Master er død! Kan vell lett fjerne selcetCasen?
 		   		//fmt.Println(n)
 		       	structObject := json2struct(bufferToRead,n)
 		       	
 		       	masterQueue = structObject.MasterQueue
+		       	if isBackup{
+		       		<- unfinishedOrdersLock
+		       		unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
+		       		unfinishedOrdersLock <- 1
+		       	}
 		       	if !isBackup && len(masterQueue) > 1 {
 		       		if masterQueue[1].Ip == myIp{
 		       			isBackupChan <- true
@@ -246,10 +254,10 @@ func listenForActiveElevators(portIp string,recieveIpChan chan string) {
    	}
 }
 
-func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
-	udpAddr, err := net.ResolveUDPAddr("udp",ipBroadcast+":"+portMasterQueue)
+func broadcastMasterData(ipBroadcast string,portMasterData string){
+	udpAddr, err := net.ResolveUDPAddr("udp",ipBroadcast+":"+portMasterData)
 	if err != nil {
-		fmt.Println("error resolving UDP address on ", portMasterQueue)
+		fmt.Println("error resolving UDP address on ", portMasterData)
 		fmt.Println(err)
 		os.Exit(1)
 	}
@@ -258,11 +266,13 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 		select{
 		case <- masterQueueLock:
 			if err != nil {
-			    fmt.Println("error listening on UDP port ", portMasterQueue)
+			    fmt.Println("error listening on UDP port ", portMasterData)
 			    fmt.Println(err)
 			    os.Exit(1)
 			}
-			sendingObject := DataObject{"",masterQueue,OrderData{}}
+			<-unfinishedOrdersLock 
+			sendingObject := DataObject{"",masterQueue,OrderData{},unfinishedOrders}
+			unfinishedOrdersLock <- 1 													//Her kan vi muligens få en deadlock. Diskuter dette!
 			masterQueueLock <- 1
 			jsonFile := struct2json(sendingObject)
 			broadcastSocket.Write(jsonFile)
@@ -276,7 +286,7 @@ func broadcastMasterQueue(ipBroadcast string,portMasterQueue string){
 	}	
 }
 
-func removeDeadElevators(){ 
+func handleDeadElevators(){ 
 	for{
 		<- masterQueueLock
 		n := len(masterQueue)
@@ -284,10 +294,8 @@ func removeDeadElevators(){
 			for i,element:= range masterQueue{
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 				if timeNow > element.Deadline && element.Ip != myIp{
-					fmt.Println("fjerner død heis")
-					newMasterQueue :=masterQueue[0:i]
-					newMasterQueue = append(newMasterQueue,masterQueue[i+1:n]...)
-					masterQueue = newMasterQueue
+					removeElevator(i,n)
+					allocateElevatorOrders(element)	
 					break
 				}
 			}
@@ -297,4 +305,23 @@ func removeDeadElevators(){
  	}
 }
 
+func removeElevator(deadIndex int,lengthMasterQueue int){
+	fmt.Println("fjerner død heis")
+	newMasterQueue :=masterQueue[0:deadIndex]
+	newMasterQueue = append(newMasterQueue,masterQueue[deadIndex+1:lengthMasterQueue]...)
+	masterQueue = newMasterQueue
+}
+
+
+func allocateElevatorOrders(deadElevator IpObject){   // Dette må vi diskutere
+	<-unfinishedOrdersLock
+	for _,element := range unfinishedOrders{
+		if element.Ip == deadElevator.Ip {
+			// Her må man starte en ny separat auksjon av alle bestillinger som ikke er tatt fra den døde heisen.
+		}
+
+	}
+
+
+}
 

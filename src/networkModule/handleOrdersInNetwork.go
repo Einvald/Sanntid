@@ -18,6 +18,8 @@ type OrderData struct {
 	Order int //buttonOrder
 	OrderComplete bool // trenger vell ikke denne?
 	Ip string
+	
+
 }
 
 type MessageType int 
@@ -29,7 +31,14 @@ type MessageType int
 	)
 
 
-//Obs!! Hvis master dør må backup også overta unfinishedOrderskøen
+// Trenger å bestemme hvor Master skal lese orders. Skal det skje i handleOrdersInNetwork som en goroutine eller i runElevator?
+// Må diskutere hvordan døde heisers bestillinger skal håndteres. Se funksjon på runElevator
+// Må bestemme port som slave skal lese fra
+// Må finne hva maksimal kost kan være ish?
+// Trenger funksjonalitet til: Hvis ikke bestillingen mottas av Master må den tas selv
+// Diskuter deadlocks knyttet til unfinishedOrdersLock
+//Diskuter kommentar linje 147 runElevator
+
 
 var unfinishedOrders = [] OrderData{}
 var recievedMessageToMaster = make(chan OrderData, 1024)
@@ -59,7 +68,7 @@ func handleOrdersInNetwork(){
 			}
 		case order := <- recievedOrderChan:
 			if !isInQueue(order){
-				go auction(order,IP_BROADCAST,BROADCAST_PORT,portSomSlaverLeserFra)
+				go auction(order,IP_BROADCAST,BROADCAST_PORT,portSomSlaverLeserFra)   
 				
 			}
 			
@@ -237,7 +246,7 @@ func sendOrderData(ip string, port string, message OrderData){	//Denne brukes b�
 		if timeNow > deadline {
 			break
 		}
-		sendingObject := DataObject{"",[]IpObject {},message}
+		sendingObject := DataObject{"",[]IpObject {},message,[]OrderData {} }
 		jsonFile := struct2json(sendingObject)
 		broadcastSocket.Write(jsonFile)
 		time.Sleep(1 * time.Millisecond)	
