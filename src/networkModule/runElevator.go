@@ -57,11 +57,12 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 			deadChan := make(chan int)
 			time.Sleep(3000 * time.Millisecond)
 			fmt.Println("MAsterqueu1:",masterQueue)
+			/*
 			time.Sleep(3000 * time.Millisecond)
 			fmt.Println("MAsterqueu2:",masterQueue)
 			time.Sleep(3000 * time.Millisecond)
 			fmt.Println("MAsterqueu3:",masterQueue)
-			<-deadChan
+			*/<-deadChan
 
 		}else if isBackup {
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
@@ -105,7 +106,8 @@ func broadcastIp(IP_BROADCAST string, portIp string){
 		//test := json2struct(jsonFile,100)
 		//fmt.Println("Printer nå tilbakekonvertert shit:",test)
 		broadcastSocket.Write(jsonFile)
-
+		time.Sleep(300 * time.Millisecond)
+		// HER BØR VI KANSKJE SLEEPE
 
 
 	}	
@@ -284,6 +286,7 @@ func broadcastMasterData(IP_BROADCAST string,portMasterData string){
 			masterQueueLock <- 1
 			jsonFile := struct2json(sendingObject)
 			broadcastSocket.Write(jsonFile)
+			time.Sleep(30 * time.Millisecond)
 		default:
 			time.Sleep(5 * time.Millisecond)					
 

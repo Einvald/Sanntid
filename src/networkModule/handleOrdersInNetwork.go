@@ -66,12 +66,10 @@ func handleOrdersInNetwork(){
 			fmt.Println("INNE I HANDLEORDERSINNETWORK har mottat type: ", recievedData.Type)
 			switch recievedData.Type {
 				case COST:
-					fmt.Println("COST MOTTAT I MASTER")
 					recievedCostChan <- recievedData
 				case ORDER:
 					fmt.Println("FØR")
 					recievedOrderChan <- recievedData
-					fmt.Println("etter")
 				case ORDER_COMPLETE:
 					recievedOrderComplete <- recievedData
 			}
@@ -95,11 +93,10 @@ func handleOrdersInNetwork(){
 func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string, portSomSlaverLeserFra string){
 	<- auctionLock
 	fmt.Println("AUCTION I GANG")
-	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 200
+	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 5000
 	elevatorsInAuction := [] OrderData {} 
 	newOrderData.Type = REQUEST_AUCTION
 	newOrderData.FromMaster = true  
-	fmt.Println("AUCTION FØR SENDORDERDATA")
 	sendOrderData(IP_BROADCAST,BROADCAST_PORT,newOrderData)  
 	for {
 		select{
@@ -118,6 +115,7 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 		}
 		timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 		if len(elevatorsInAuction) == len(masterQueue) || timeNow > deadline  {	
+
 			break
 		}
 	}
@@ -132,9 +130,10 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 	
 	
 	}
-	<- unfinishedOrdersLock 
+	//<- unfinishedOrdersLock 
+	fmt.Println("LOwEST COST ER NÅ FUNNET TIL Å VÆRE: ", lowestCost)
 	addNewOrder(elevatorWithLowestCost)
-	unfinishedOrdersLock <- 1
+	//unfinishedOrdersLock <- 1
 	elevatorWithLowestCost.Type = ORDER
 	elevatorWithLowestCost.FromMaster = true
 	sendOrderData(elevatorWithLowestCost.Ip,portSomSlaverLeserFra,elevatorWithLowestCost) // Porten her må bestemmes eksternt!!
@@ -142,7 +141,8 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 }
 
 func handleOrdersFromMaster(Order_data_from_master_chan chan OrderData){
-	go readOrderData(MASTER_TO_SLAVE_PORT) 
+	go readOrderData(MASTER_TO_SLAVE_PORT)
+	go readOrderData(BROADCAST_PORT)
 	for {
 		select{
 		case recievedData := <- recievedMessage:
@@ -181,6 +181,7 @@ func addNewOrder(newOrderData OrderData){
 
 func removeOrder(orderComplete OrderData){
 	order2Remove := orderComplete.Order
+	fmt.Println("UNFINISHED ORDERS LISTEN: ", unfinishedOrders)
 	for i,element:= range unfinishedOrders{
 		if element.Order == order2Remove{
 			n := len (unfinishedOrders)			
@@ -227,6 +228,7 @@ func readOrderData(port string){
             data := structObject.OrderMessage
             if data.FromMaster{
             	recievedMessage <- data
+            	fmt.Println("Data fra master lest, melding: ", data)
             
             }else if !data.FromMaster{
             	recievedMessageToMaster <- data
@@ -234,7 +236,7 @@ func readOrderData(port string){
             } 
             
         }
-
+        time.Sleep(30 * time.Millisecond)
    	}
 }
 	//Hvis til Master legges det på masterkanalen, hvis ikke på den andre kanalen

@@ -51,7 +51,6 @@ var currentState State = RUN_DOWN;
 
 func FloorReached(floor int){
 	if floor<0{floor = floor*(-1)}
-	fmt.Println("Inside FloorReached with current state: ", getCurrentState());
 	SetCurrentFloorLampChan <- floor;
 	setCurrentFloor(floor);
 	switch getCurrentState(){
@@ -62,7 +61,7 @@ func FloorReached(floor int){
 				SetTimerChan <- true;
 				SetButtonLampChan <- ButtonLamp {floor, 0, 0};
 				SetButtonLampChan <- ButtonLamp {floor, 2, 0};
-				removeOrderFromQueue(floor, 0); //MÅ SENDE MELDING OM AT KØ FOR ALLE HEISER ER FERDIG
+				removeOrderFromQueue(floor, 0); 
 				removeOrderFromQueue(floor, 2);
 				if !checkIfOrdersAtHigherFloors(floor){
 					removeOrderFromQueue(floor, 1);
@@ -113,11 +112,14 @@ func TimerOut() {
 						}
 
 					case 0:
-								EmptyQueues();
+								//EmptyQueues();
+								removeOrderFromQueue(currentFloor, 0)
+								removeOrderFromQueue(currentFloor, 1)
+								removeOrderFromQueue(currentFloor, 2)
 								SetButtonLampChan <- ButtonLamp {getCurrentFloor(), 0, 0};
 								SetButtonLampChan <- ButtonLamp {getCurrentFloor(), 1, 0};
 								SetButtonLampChan <- ButtonLamp {getCurrentFloor(), 2, 0};
-								setCurrentState(IDLE);	
+								setCurrentState(IDLE);
 					case -1: 
 						setCurrentState(RUN_DOWN);
 						removeOrderFromQueue(getCurrentFloor(), 2);
