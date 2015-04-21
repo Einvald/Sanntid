@@ -100,7 +100,7 @@ func printQueues(){
 
 func checkIfOrdersAtHigherFloors(floor int) bool{
 	for i := range queueUp{
-		if ((queueUp[i] == i && i>floor) || (queueInElev[i]==i && i>floor) || (queueUp[i]==i && i>floor)){return true;}
+		if ((queueUp[i] == i && i>floor) || (queueInElev[i]==i && i>floor) || (queueDown[i]==i && i>floor)){return true;}
 	}
 	return false;
 }

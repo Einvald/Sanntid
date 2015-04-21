@@ -159,7 +159,6 @@ func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan 
 	    <- masterQueueLock   
 	   	if n > 0 && !isMaster {		
 	       	structObject := json2struct(bufferToRead,n)
-	       	fmt.Println("Printer det jeg fikk over UDP",structObject)
 	       	masterQueue = structObject.MasterQueue
 	       	if isBackup{
 	       		//<- unfinishedOrdersLock
@@ -306,7 +305,7 @@ func handleDeadElevators(){
 				timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 				if timeNow > element.Deadline && element.Ip != myIp{
 					removeElevator(i,n)
-					//allocateElevatorOrders(element)	
+					allocateElevatorOrders(element)	
 					break
 				}
 			}
@@ -330,6 +329,7 @@ func allocateElevatorOrders(deadElevator IpObject){   // Dette må vi diskutere
 		if element.Ip == deadElevator.Ip {
 
 			element.Type = ORDER
+			removeOrder(element)
 			recievedOrderChan <- element
 			// Her må man starte en ny separat auksjon av alle bestillinger som ikke er tatt fra den døde heisen.
 		}

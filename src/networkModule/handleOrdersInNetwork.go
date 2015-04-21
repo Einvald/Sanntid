@@ -63,21 +63,20 @@ func handleOrdersInNetwork(){
 	for {
 		select{
 		case recievedData := <- recievedMessageToMaster:
-			fmt.Println("INNE I HANDLEORDERSINNETWORK har mottat type: ", recievedData.Type)
+			//fmt.Println("INNE I HANDLEORDERSINNETWORK har mottat type: ", recievedData.Type)
 			switch recievedData.Type {
 				case COST:
 					recievedCostChan <- recievedData
 				case ORDER:
-					fmt.Println("FØR")
 					recievedOrderChan <- recievedData
 				case ORDER_COMPLETE:
 					recievedOrderComplete <- recievedData
 			}
 		case order := <- recievedOrderChan:
-			fmt.Println(!isInQueue(order), "  IS IN QUEUE CHECK")
 			if !isInQueue(order){
 				fmt.Println("RecievedOrderChan er nå blitt lest ", order)
-				go auction(order,IP_BROADCAST,BROADCAST_PORT,MASTER_TO_SLAVE_PORT)   
+				go auction(order,IP_BROADCAST,BROADCAST_PORT,MASTER_TO_SLAVE_PORT) 
+
 			}
 			// Sjekk om finnes i liste. Legg til hvis ikke
 		case orderComplete := <- recievedOrderComplete:
@@ -92,51 +91,58 @@ func handleOrdersInNetwork(){
 
 func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string, portSomSlaverLeserFra string){
 	<- auctionLock
-	fmt.Println("AUCTION I GANG")
-	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 5000
-	elevatorsInAuction := [] OrderData {} 
-	newOrderData.Type = REQUEST_AUCTION
-	newOrderData.FromMaster = true  
-	sendOrderData(IP_BROADCAST,BROADCAST_PORT,newOrderData)  
-	for {
-		select{
-		case cost := <- recievedCostChan:
-			fmt.Println("COST IS RECIEVED!")
-			allreadyInList := false
-			for _,element:= range elevatorsInAuction{
-				if element == cost{			
-					allreadyInList = true
-					break
+	if !isInQueue(newOrderData){
+		fmt.Println("AUCTION I GANG")
+		deadline := time.Now().UnixNano() / int64(time.Millisecond) + 800
+		elevatorsInAuction := [] OrderData {} 
+		newOrderData.Type = REQUEST_AUCTION
+		newOrderData.FromMaster = true  
+		sendOrderData(IP_BROADCAST,BROADCAST_PORT,newOrderData)  
+		for {
+
+			select{
+			case cost := <- recievedCostChan:
+				fmt.Println("COST IS RECIEVED! ", cost)
+				allreadyInList := false
+				for _,element:= range elevatorsInAuction{
+					if element == cost {			
+						allreadyInList = true
+						break
+					}
+				}
+				if !allreadyInList && cost.Order == newOrderData.Order {
+					elevatorsInAuction = append(elevatorsInAuction,cost)
 				}
 			}
-			if !allreadyInList{
-				elevatorsInAuction = append(elevatorsInAuction,cost)
+			timeNow := time.Now().UnixNano() / int64(time.Millisecond)
+			if len(elevatorsInAuction) == len(masterQueue) || timeNow > deadline  {
+
+
+				break
 			}
 		}
-		timeNow := time.Now().UnixNano() / int64(time.Millisecond)
-		if len(elevatorsInAuction) == len(masterQueue) || timeNow > deadline  {	
+		lowestCost := COST_CEILING
+		elevatorWithLowestCost := OrderData {}
+		elevatorWithLowestCost.Cost = COST_CEILING
+		fmt.Println("AUCTIONCHECK", elevatorWithLowestCost)
+		for _,element:= range elevatorsInAuction{
+			if element.Cost < lowestCost{
+				lowestCost = element.Cost
+				elevatorWithLowestCost = element
 
-			break
+			}
+			fmt.Println("COSTSJEKKEN på følgende element: ", element)
+		
 		}
+		//<- unfinishedOrdersLock 
+		fmt.Println("LOwEST COST ER NÅ FUNNET TIL Å VÆRE: ", lowestCost)
+		addNewOrder(elevatorWithLowestCost)
+		//unfinishedOrdersLock <- 1
+		elevatorWithLowestCost.Type = ORDER
+		elevatorWithLowestCost.FromMaster = true
+		fmt.Println("ELEVATOR WITH LOWEST COST SIN IP ER FØLGENDE: ", elevatorWithLowestCost.Ip)
+		sendOrderData(elevatorWithLowestCost.Ip,portSomSlaverLeserFra,elevatorWithLowestCost) // Porten her må bestemmes eksternt!!
 	}
-	lowestCost := COST_CEILING
-	elevatorWithLowestCost := elevatorsInAuction[0]
-	fmt.Println("AUCTIONCHECK", elevatorWithLowestCost)
-	for _,element:= range elevatorsInAuction{
-		if element.Cost < lowestCost{
-			lowestCost = element.Cost
-			elevatorWithLowestCost = element
-		}
-	
-	
-	}
-	//<- unfinishedOrdersLock 
-	fmt.Println("LOwEST COST ER NÅ FUNNET TIL Å VÆRE: ", lowestCost)
-	addNewOrder(elevatorWithLowestCost)
-	//unfinishedOrdersLock <- 1
-	elevatorWithLowestCost.Type = ORDER
-	elevatorWithLowestCost.FromMaster = true
-	sendOrderData(elevatorWithLowestCost.Ip,portSomSlaverLeserFra,elevatorWithLowestCost) // Porten her må bestemmes eksternt!!
 	auctionLock <- 1	
 }
 
@@ -160,7 +166,6 @@ func isInQueue(newOrderData OrderData) bool {
 	<- unfinishedOrdersLock
 	allreadyInList := false
 	for _,element:= range unfinishedOrders{
-		fmt.Println(element.Order, " ", newOrder, "   BALLLUBA")
 		if element.Order == newOrder{			
 			allreadyInList = true
 			break
