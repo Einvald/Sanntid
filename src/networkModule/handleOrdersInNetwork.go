@@ -80,9 +80,11 @@ func handleOrdersInNetwork(){
 			}
 			// Sjekk om finnes i liste. Legg til hvis ikke
 		case orderComplete := <- recievedOrderComplete:
-			<- unfinishedOrdersLock 
+			<- unfinishedOrdersLock
+			orderComplete.FromMaster = true 
 			removeOrder(orderComplete)
-			unfinishedOrdersLock <- 1
+			sendOrderData(IP_BROADCAST,MASTER_TO_SLAVE_PORT,orderComplete)
+			unfinishedOrdersLock <- 1 
 		}
 		
 	}

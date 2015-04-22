@@ -40,11 +40,11 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 	recieveIpChan := make(chan string,1024) 
 	isMasterChan := make(chan bool,1)
 	isBackupChan := make(chan bool,1)
+	isOffline := make(chan bool,1)
 	go updateMasterData(portMasterData,isMasterChan, isBackupChan)
 	go broadcastIp(IP_BROADCAST,portIp) // Fungerer også som Imalive
 	go sendOrderDataToMaster(Order_data_to_master_chan)
 	go handleOrdersFromMaster(Order_data_from_master_chan)
-	
 	for{
 		if isMaster{
 			fmt.Println("Er nå Master")
@@ -54,16 +54,16 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 			go broadcastMasterData(IP_BROADCAST, portMasterData)									//Denne må lages. Fungerer som imAlive
 			go handleDeadElevators()
 			go handleOrdersInNetwork()
-			deadChan := make(chan int)
+			<- isOffline
+			for _,element:= range unfinishedOrders{
+				element.Type = ORDER
+				Order_data_from_master_chan <- element
+			
 			time.Sleep(3000 * time.Millisecond)
 			fmt.Println("MAsterqueu1:",masterQueue)
-			/*
-			time.Sleep(3000 * time.Millisecond)
-			fmt.Println("MAsterqueu2:",masterQueue)
-			time.Sleep(3000 * time.Millisecond)
-			fmt.Println("MAsterqueu3:",masterQueue)
-			*/<-deadChan
-
+						
+			break
+			}
 		}else if isBackup {
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			fmt.Println("jeg er Backup")
@@ -74,15 +74,13 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 		}else{
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			fmt.Println("Jeg er bare slave")
-			isBackup = <-isBackupChan
+			//select {
+				//case isBackup <-isBackupChan:
+				//case isMaster <-isMasterChan:  			
 			
-			
-		} 
-	}
-
-	
-	
-	
+			//} 
+		}
+	}			
 }
 
 func broadcastIp(IP_BROADCAST string, portIp string){
@@ -127,7 +125,6 @@ func json2struct(jsonObject []byte,n int) DataObject{
 
 func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan chan bool){
 	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterData) //muligens "" istedet for myIp
-
 	if err != nil {
                 fmt.Println("error resolving UDP address on ", portMasterData)
                 fmt.Println(err)
@@ -141,18 +138,25 @@ func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan 
             fmt.Println(err)
             os.Exit(1)
 	}
+	deadMaster := false
 	for{
 		
 		bufferToRead := make([] byte, 1024)
-		deadline := time.Now().Add(1500*time.Millisecond)
+		deadline := time.Now().Add(1000*time.Millisecond)
 		readerSocket.SetReadDeadline(deadline)
-		n,_,err := readerSocket.ReadFromUDP(bufferToRead[0:])
-			
-	    
-	 	if err != nil && isBackup {
-	 		fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
-	        isMasterChan <- true
-	                
+		n,_,timeout := readerSocket.ReadFromUDP(bufferToRead[0:])
+				    
+	 	if timeout != nil {
+	 		if isBackup{
+	 			fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
+	        	isMasterChan <- true
+	        }else if !isMaster {
+	        	if deadMaster{
+	        		isMasterChan <- true
+
+	        	}else{deadMaster = true; continue;}
+	        	
+	        } 
 	    }
 	    
 	 
@@ -160,10 +164,9 @@ func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan 
 	   	if n > 0 && !isMaster {		
 	       	structObject := json2struct(bufferToRead,n)
 	       	masterQueue = structObject.MasterQueue
-	       	if isBackup{
-	       		//<- unfinishedOrdersLock
-	       		unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
-	       		//unfinishedOrdersLock <- 1
+	       	//<- unfinishedOrdersLock
+	       	unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
+	       	//unfinishedOrdersLock <- 1
 	       	}
 	       	if !isBackup && len(masterQueue) > 1 {
 	       		if masterQueue[1].Ip == myIp{
@@ -171,13 +174,12 @@ func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan 
 	       			fmt.Println("Nå er jeg backup")
 	       		}
 	       	}
-	       	
+	    masterQueueLock <- 1   	
 	       	 	   		 
-    	}
-  	 	masterQueueLock <- 1
+    }
+  	 	
   	 	//time.Sleep(5 * time.Millisecond)			
 	  			
-	}
 }
 
 //Leser inn ny ip fra channel. lager en temp kø lik nåværende MasterQueue. Sjekker om ny ip ligger i køen. // Hvis ikke legges den til i lista.

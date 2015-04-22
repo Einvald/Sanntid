@@ -145,13 +145,28 @@ func getCostForOrder(floor int, buttonType int, currentDirection int, currentFlo
 					if currentFloor <= floor{cost+=15;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
 			}
 	}
-	stops := amountOfStopsBeforeFloor(floor, buttonType, currentDirection, currentFloor);
-	cost += stops*5;
-	fmt.Println("COST = ", cost)
+	stops := amountOfOrdersInQueue(floor, buttonType, currentDirection, currentFloor);
+	cost += stops*3;
 	return cost;
 }
 
-func amountOfStopsBeforeFloor(floor int, buttonType int, currentDirection int, currentFloor int) int {
+func amountOfOrdersInQueue(floor int, buttonType int, currentDirection int, currentFloor int) int {
+	stopCounter := 0;
+	for i := range queueUp{
+		if queueUp[i] == i {stopCounter += 1;}
+		if queueDown[i] == i {stopCounter += 1;}
+		if queueInElev[i] == i {stopCounter += 1;}
+	}
+	return stopCounter;
+}
+
+func checkIfOrdersInFloor(floor int) bool{
+	if (queueUp[floor]==floor || queueDown[floor]==floor || queueInElev[floor]==floor){
+		return true;
+	} else {return false;}
+}
+
+/* Tidligere innmat i amountOfStopsBeforeFloor
 	stopCounter := 0;
 	floorIsOver := floor>currentFloor;
 	switch currentDirection{
@@ -199,11 +214,4 @@ func amountOfStopsBeforeFloor(floor int, buttonType int, currentDirection int, c
 	}
 	fmt.Println("STOPAMOUNT = ", stopCounter);
 	fmt.Println("STOPAMOUNT = ", stopCounter);
-	return stopCounter;
-}
-
-func checkIfOrdersInFloor(floor int) bool{
-	if (queueUp[floor]==floor || queueDown[floor]==floor || queueInElev[floor]==floor){
-		return true;
-	} else {return false;}
-}
+	*/
