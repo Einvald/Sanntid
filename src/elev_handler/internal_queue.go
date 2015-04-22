@@ -4,10 +4,19 @@ import(
 	"fmt"
 	"math"
 	)
+
+const N_FLOORS int = 4
+const N_BUTTONS int = 3
+
 var FinishedOrderChan = make (chan ButtonOrder, 1024);
-var queueUp  = [4] int {};
-var queueDown = [4] int {};
-var queueInElev = [4] int {};
+var queueUpChan = make(chan [N_FLOORS] int, 1);
+var queueDownChan = make(chan [N_FLOORS] int, 1);
+var queueInElevChan = make(chan [N_FLOORS] int, 1);
+var queueUp  = [N_FLOORS] int {};
+var queueDown = [N_FLOORS] int {};
+var queueInElev = [N_FLOORS] int {};
+
+
 
 func nextDirection(currentFloor int, currentDirection int) int {
 	switch currentDirection{
