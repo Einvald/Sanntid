@@ -17,7 +17,6 @@ var queueDown = [N_FLOORS] int {};
 var queueInElev = [N_FLOORS] int {};
 
 
-
 func nextDirection(currentFloor int, currentDirection int) int {
 	switch currentDirection{
 		case 1:
