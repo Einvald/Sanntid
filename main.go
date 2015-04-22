@@ -26,7 +26,7 @@ func main() {
 	Order_data_to_master_channel := make(chan net.OrderData, 1024);
 	Order_data_from_master_channel := make(chan net.OrderData, 1024);
 	d.Driver_init()
-	d.Driver_set_button_lamp(2, 0, 1);
+	d.Driver_set_button_lamp(2, 2, 1);
 	d.Driver_set_motor_direction(-1);
 	elev.EmptyQueues();
 	elev.AddToQueue(0, 2);

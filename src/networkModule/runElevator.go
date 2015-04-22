@@ -13,6 +13,7 @@ import (
     	"os"
     	"encoding/json"
     	"time"
+    	"strings"
 	)
 
 type DataObject struct {
@@ -40,8 +41,9 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 	recieveIpChan := make(chan string,1024) 
 	isMasterChan := make(chan bool,1)
 	isBackupChan := make(chan bool,1)
-	isOffline := make(chan bool,1)
-	go updateMasterData(portMasterData,isMasterChan, isBackupChan)
+	isSlaveChan := make(chan bool,1)
+	//isOffline := make(chan bool,1) // Vi må se om dette trengs?
+	go updateMasterData(portMasterData,isMasterChan, isBackupChan, isSlaveChan)
 	go broadcastIp(IP_BROADCAST,portIp) // Fungerer også som Imalive
 	go sendOrderDataToMaster(Order_data_to_master_chan)
 	go handleOrdersFromMaster(Order_data_from_master_chan)
@@ -54,16 +56,17 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 			go broadcastMasterData(IP_BROADCAST, portMasterData)									//Denne må lages. Fungerer som imAlive
 			go handleDeadElevators()
 			go handleOrdersInNetwork()
-			<- isOffline
-			for _,element:= range unfinishedOrders{
-				element.Type = ORDER
-				Order_data_from_master_chan <- element
-			
-			time.Sleep(3000 * time.Millisecond)
-			fmt.Println("MAsterqueu1:",masterQueue)
+			//<- isOffline
+			//for _,element:= range unfinishedOrders{
+			//	element.Type = ORDER
+			//	Order_data_from_master_chan <- element
+			//}
+			//time.Sleep(3000 * time.Millisecond)
+			//fmt.Println("MAsterqueu1:",masterQueue)
 						
-			break
-			}
+			<-isSlaveChan
+			isMaster = false
+			
 		}else if isBackup {
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			fmt.Println("jeg er Backup")
@@ -74,11 +77,11 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 		}else{
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
 			fmt.Println("Jeg er bare slave")
-			//select {
-				//case isBackup <-isBackupChan:
-				//case isMaster <-isMasterChan:  			
+			select {
+				case isBackup = <- isBackupChan:
+				case isMaster = <- isMasterChan:  			
 			
-			//} 
+			} 
 		}
 	}			
 }
@@ -123,7 +126,7 @@ func json2struct(jsonObject []byte,n int) DataObject{
 	return structObject
 }
 
-func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan chan bool){
+func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan chan bool, isSlaveChan chan bool){
 	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterData) //muligens "" istedet for myIp
 	if err != nil {
                 fmt.Println("error resolving UDP address on ", portMasterData)
@@ -150,35 +153,47 @@ func updateMasterData(portMasterData string,isMasterChan chan bool,isBackupChan 
 	 		if isBackup{
 	 			fmt.Println("Alle mann til pumpene, Master er død. Jeg tar over, follow my command.")
 	        	isMasterChan <- true
+	        	continue
 	        }else if !isMaster {
 	        	if deadMaster{
 	        		isMasterChan <- true
-
-	        	}else{deadMaster = true; continue;}
-	        	
+	        	}else{deadMaster = true;}	
+	        	continue
 	        } 
-	    }
-	    
-	 
+	    }	 
 	    <- masterQueueLock   
-	   	if n > 0 && !isMaster {		
-	       	structObject := json2struct(bufferToRead,n)
-	       	masterQueue = structObject.MasterQueue
-	       	//<- unfinishedOrdersLock
-	       	unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
-	       	//unfinishedOrdersLock <- 1
-	       	}
-	       	if !isBackup && len(masterQueue) > 1 {
-	       		if masterQueue[1].Ip == myIp{
-	       			isBackupChan <- true
-	       			fmt.Println("Nå er jeg backup")
-	       		}
-	       	}
+	   	if n > 0 {
+	   		structObject := json2struct(bufferToRead,n)
+
+	   		if len(structObject.MasterQueue) >0  {
+		   		ipMaster := structObject.MasterQueue[0].Ip
+		   		if isMaster && ipMaster != myIp {
+		   			myIpSplit := strings.Split(myIp,".")
+		   			ipMasterSplit := strings.Split(ipMaster,".")
+		   			if myIpSplit[3] < ipMasterSplit[3]{
+		   				isSlaveChan <- true			
+		   			}
+	   			}
+	   		}
+	   		if !isMaster {		
+		       	masterQueue = structObject.MasterQueue
+		       	//<- unfinishedOrdersLock
+		       	unfinishedOrders = structObject.UnfinishedOrders // Funksjonalitet lagt til
+		       	fmt.Println("UnfinishedOrders ser slik ut:",unfinishedOrders)
+		       	//unfinishedOrdersLock <- 1		       	
+		       	if !isBackup && len(masterQueue) > 1 {
+		       		if masterQueue[1].Ip == myIp{
+		       			isBackupChan <- true
+		       			fmt.Println("Nå er jeg backup")
+		       		}
+		    	}
+		    }
+	    }
 	    masterQueueLock <- 1   	
 	       	 	   		 
     }
   	 	
-  	 	//time.Sleep(5 * time.Millisecond)			
+  	 				
 	  			
 }
 
@@ -318,10 +333,11 @@ func handleDeadElevators(){
 }
 
 func removeElevator(deadIndex int,lengthMasterQueue int){
-	fmt.Println("fjerner død heis")
+	fmt.Println("fjerner død heis.")
 	newMasterQueue :=masterQueue[0:deadIndex]
 	newMasterQueue = append(newMasterQueue,masterQueue[deadIndex+1:lengthMasterQueue]...)
 	masterQueue = newMasterQueue
+	fmt.Println("Masterqueue er nå",masterQueue)
 }
 
 
