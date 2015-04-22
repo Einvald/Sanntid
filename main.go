@@ -13,28 +13,27 @@ const N_BUTTONS int = 3
 const ON = 1
 const OFF = 0
 
-/*
-type ButtonLamp struct{
-	floor int;
-	buttonType int;
-	turnOn int;
-}
-*/
 func main() {
 	Floor_sensor_channel := make(chan int, 1);
 	Order_button_signal_channel := make(chan net.ButtonOrder);
 	Order_data_to_master_channel := make(chan net.OrderData, 1024);
 	Order_data_from_master_channel := make(chan net.OrderData, 1024);
+	CurrentDirection := make(chan int, 1);
+	CurrentFloor := make(chan int, 1);
+	CurrentState := make(chan elev.State, 1);
+	timerChan := make(chan int64);
 	d.Driver_init()
 	d.Driver_set_button_lamp(2, 0, 1);
+	CurrentState <- elev.RUN_DOWN;
+	CurrentFloor <- 0;
+	CurrentDirection <- -1;
 	d.Driver_set_motor_direction(-1);
 	elev.EmptyQueues();
 	elev.AddToQueue(0, 2);
-	go checkForInput(Floor_sensor_channel, Order_button_signal_channel)
-	go handleInputChannels(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel)
-	//time.Sleep(100 * time.Millisecond);
-	go handleElevatorCommands(Order_data_to_master_channel);
-	elev.InitializeChanLocks();
+	go checkForInput(Floor_sensor_channel, Order_button_signal_channel, CurrentDirection, CurrentFloor, CurrentState)
+	go handleInputChannels(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel, CurrentDirection, CurrentFloor, CurrentState)
+	go handleElevatorCommands(Order_data_to_master_channel, timerChan);
+	go elev.DoorTimer(timerChan, CurrentDirection, CurrentFloor, CurrentState);
 	net.InitializeElevator()
 	go net.RunElevator(Order_data_to_master_channel, Order_data_from_master_channel)
 	
@@ -42,19 +41,19 @@ func main() {
 	<- deadChan;
 }
 
-func handleInputChannels(Floor_sensor_channel chan int, Order_button_signal_channel chan net.ButtonOrder, Order_data_from_master_channel chan net.OrderData, Order_data_to_master_channel chan net.OrderData){
+func handleInputChannels(Floor_sensor_channel chan int, Order_button_signal_channel chan net.ButtonOrder, Order_data_from_master_channel chan net.OrderData, Order_data_to_master_channel chan net.OrderData, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan elev.State){
 	for{
 		select {
 			case floor:= <-Floor_sensor_channel:
-				elev.FloorReached(floor);
+				elev.FloorReached(floor, CurrentDirection, CurrentFloor, CurrentState);
 			case order:= <- Order_button_signal_channel:
 				if order.ButtonType == 2 {d.Driver_set_button_lamp(order.ButtonType, order.Floor, ON);
-					if elev.CheckIfCurrentFloor(order.Floor){
+					if elev.CheckIfCurrentFloor(order.Floor, CurrentFloor){
 						elev.AddToQueue(order.Floor, order.ButtonType);
-						elev.NewOrderToCurrentFloor();
+						elev.NewOrderToCurrentFloor(CurrentState);
 					}else if elev.CheckIfEmptyQueues(){
 						elev.AddToQueue(order.Floor, order.ButtonType)
-						elev.NewOrderInEmptyQueue();
+						elev.NewOrderInEmptyQueue(CurrentDirection, CurrentFloor, CurrentState);
 					}else {
 						elev.AddToQueue(order.Floor, order.ButtonType)
 					}
@@ -65,18 +64,18 @@ func handleInputChannels(Floor_sensor_channel chan int, Order_button_signal_chan
 			case orderData := <- Order_data_from_master_channel:
 				order := orderData.Order;
 				if orderData.Type == net.ORDER{
-					if elev.CheckIfCurrentFloor(order.Floor){
+					if elev.CheckIfCurrentFloor(order.Floor, CurrentFloor){
 						elev.AddToQueue(order.Floor, order.ButtonType);
-						elev.NewOrderToCurrentFloor();
+						elev.NewOrderToCurrentFloor(CurrentState);
 					}else if elev.CheckIfEmptyQueues(){
 						elev.AddToQueue(order.Floor, order.ButtonType)
-						elev.NewOrderInEmptyQueue();
+						elev.NewOrderInEmptyQueue(CurrentDirection, CurrentFloor, CurrentState);
 					}else {
 						elev.AddToQueue(order.Floor, order.ButtonType)
 					}
 				}else if orderData.Type == net.REQUEST_AUCTION{	
 					d.Driver_set_button_lamp(order.ButtonType, order.Floor, 1)
-					cost := elev.GetCostForOrder(order.Floor, order.ButtonType);
+					cost := elev.GetCostForOrder(order.Floor, order.ButtonType, CurrentDirection, CurrentFloor, CurrentState);
 					orderData := net.OrderData {false, net.COST, orderData.Order, cost, ""}
 					Order_data_to_master_channel <- orderData;
 				} else if orderData.Type == net.ORDER_COMPLETE {
@@ -88,14 +87,14 @@ func handleInputChannels(Floor_sensor_channel chan int, Order_button_signal_chan
 }
 
 
-func checkForInput(Floor_sensor_channel chan int, Order_button_signal_channel chan net.ButtonOrder){
+func checkForInput(Floor_sensor_channel chan int, Order_button_signal_channel chan net.ButtonOrder, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan elev.State){
 	floorSensored := 0;
 	floorPushed := [N_FLOORS * N_BUTTONS] int{};
 	for i := range floorPushed{floorPushed[i] = 0;}
 	for {
 		if d.Driver_get_floor_sensor_signal() != (-1) && floorSensored ==0 {
 			fmt.Println("reached floor")
-			if elev.CheckIfFloorInQueue(d.Driver_get_floor_sensor_signal()){
+			if elev.CheckIfFloorInQueue(d.Driver_get_floor_sensor_signal(), CurrentDirection ){
 					d.Driver_set_motor_direction(0);
 			}
 			floorSensored = 1;
@@ -121,9 +120,8 @@ func checkForInput(Floor_sensor_channel chan int, Order_button_signal_channel ch
 		
 }
 
-func handleElevatorCommands(Order_data_to_master_channel chan net.OrderData){
-	timeChan := make(chan int64);
-	go elev.DoorTimer(timeChan);
+func handleElevatorCommands(Order_data_to_master_channel chan net.OrderData, timerChan chan int64){
+	
 	for {
 		select {
 			case floor := <- elev.SetCurrentFloorLampChan:
@@ -133,7 +131,7 @@ func handleElevatorCommands(Order_data_to_master_channel chan net.OrderData){
 				d.Driver_set_motor_direction(direction);
 			case turnOn := <- elev.SetTimerChan:
 					if turnOn{
-						timeChan <- time.Now().UnixNano()/int64(time.Millisecond)
+						timerChan <- time.Now().UnixNano()/int64(time.Millisecond)
 						d.Driver_set_door_open_lamp(ON);
 					} else{d.Driver_set_door_open_lamp(OFF);}
 			case buttonOrder  := <- elev.SetButtonLampChan:

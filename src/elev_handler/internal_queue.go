@@ -66,7 +66,11 @@ func removeOrderFromQueue(floor int, buttonType int){
 	}
 }
 
-func checkIfFloorInQueue(floor int, currentDirection int) bool{
+func CheckIfFloorInQueue(floor int, CurrentDirection chan int) bool{
+	if floor < 0 {floor = floor*(-1);}
+	currentDirection := <- CurrentDirection;
+	CurrentDirection <- currentDirection;
+
 	fmt.Println("CHECKIFFLOORINQUEUE: ", floor);
 	switch currentDirection{
 		case 1:
@@ -124,7 +128,10 @@ func getQueue(buttonType int) [4] int{
 	return queueUp;
 }
 
-func getCostForOrder(floor int, buttonType int, currentDirection int, currentFloor int, currentState State) int {
+func GetCostForOrder(floor int, buttonType int, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) int {
+	currentDirection := <- CurrentDirection; CurrentDirection <- currentDirection;
+	currentFloor := <- CurrentFloor; CurrentFloor <- currentFloor;
+	currentState := <- CurrentState; CurrentState <- currentState;
 	cost := 0;
 	if currentState== IDLE {cost += (int(math.Abs(float64(floor - currentFloor))*3));} else if currentState == DOOR_OPEN{cost+=3;}
 	if currentState == DOOR_OPEN && ((currentDirection == 1 && buttonType == 0) || (currentDirection == -1 && buttonType == 1)) && floor == currentFloor {return 0;}

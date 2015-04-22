@@ -23,28 +23,22 @@ type ButtonLamp struct{
 }
 
 
-var SetCurrentFloorLampChan = make(chan int);//FloorIndicatorLamp);
+var SetCurrentFloorLampChan = make(chan int);
 var SetButtonLampChan = make(chan ButtonLamp);
 var SetMotorChan = make(chan int)
 var SetTimerChan = make(chan bool, 1)
 
-var currentDirection = -1;
-var currentFloor = 1
-
-var currentDirectionLockChan = make(chan int, 1);
-var currentFloorLockChan = make(chan int, 1);
-var currentStateLockChan = make(chan int, 1);
-var currentState State = RUN_DOWN;
-
-func FloorReached(floor int){
+func FloorReached(floor int, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State){
 	if floor<0{floor = floor*(-1)}
 	SetCurrentFloorLampChan <- floor;
-	setCurrentFloor(floor);
-	switch getCurrentState(){
+	<- CurrentFloor; CurrentFloor <- floor;
+	currentState := <- CurrentState; CurrentState <- currentState;
+
+	switch currentState{
 		case RUN_UP:
-			if checkIfFloorInQueue(floor, getCurrentDirection()){
+			if CheckIfFloorInQueue(floor, CurrentDirection){ 
 				
-				setCurrentState(DOOR_OPEN);
+				<-CurrentState; CurrentState <- DOOR_OPEN;
 				SetTimerChan <- true;
 				SetButtonLampChan <- ButtonLamp {floor, 2, 0};
 				removeOrderFromQueue(floor, 0); 
@@ -56,9 +50,9 @@ func FloorReached(floor int){
 			}
 					
 		case RUN_DOWN:
-			if checkIfFloorInQueue(floor, getCurrentDirection()){
+			if CheckIfFloorInQueue(floor, CurrentDirection){ 
 
-				setCurrentState(DOOR_OPEN);
+				<-CurrentState; CurrentState <- DOOR_OPEN;
 				SetTimerChan <- true;
 				SetButtonLampChan <- ButtonLamp {floor, 2, 0};
 				if !checkIfOrdersAtLowerFloors(floor){
@@ -75,131 +69,87 @@ func FloorReached(floor int){
 	}
 }
 
-func TimerOut() {
-	switch getCurrentState(){
+func TimerOut(CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) {
+	currentState := <- CurrentState; CurrentState <- currentState;
+	switch currentState{
 		case RUN_UP:
 		case RUN_DOWN:
 		case DOOR_OPEN:
 				SetTimerChan <- false;
-				prevDirection := getCurrentDirection();
-				setCurrentDirection(nextDirection(getCurrentFloor(), getCurrentDirection()));
-				SetMotorChan <- getCurrentDirection();
+				currentFloor := <- CurrentFloor;
+				CurrentFloor <- currentFloor;
+				prevDirection := <- CurrentDirection;
+				currentDirection := nextDirection(currentFloor, prevDirection); 
+				CurrentDirection <- currentDirection;
+				SetMotorChan <- currentDirection;
 				switch currentDirection{
 					case 1:
-						setCurrentState(RUN_UP);
-						removeOrderFromQueue(getCurrentFloor(), 2);
-						SetButtonLampChan <- ButtonLamp {getCurrentFloor(), 2, 0};
+						<-CurrentState; CurrentState <- RUN_UP;
+						removeOrderFromQueue(currentFloor, 2);
+						SetButtonLampChan <- ButtonLamp {currentFloor, 2, 0};
 						if prevDirection != 1{
-							removeOrderFromQueue(getCurrentFloor(), 0);
+							removeOrderFromQueue(currentFloor, 0);
 						}
 
 					case 0:
 								removeOrderFromQueue(currentFloor, 0)
 								removeOrderFromQueue(currentFloor, 1)
 								removeOrderFromQueue(currentFloor, 2)
-								SetButtonLampChan <- ButtonLamp {getCurrentFloor(), 2, 0};
-								setCurrentState(IDLE);
+								SetButtonLampChan <- ButtonLamp {currentFloor, 2, 0};
+								<-CurrentState; CurrentState <- IDLE;
 					case -1: 
-						setCurrentState(RUN_DOWN);
-						removeOrderFromQueue(getCurrentFloor(), 2);
-						SetButtonLampChan <- ButtonLamp {getCurrentFloor(), 2, 0};
+						<-CurrentState; CurrentState <- RUN_DOWN;
+						removeOrderFromQueue(currentFloor, 2);
+						SetButtonLampChan <- ButtonLamp {currentFloor, 2, 0};
 						if prevDirection != -1{
-							removeOrderFromQueue(getCurrentFloor(), 1);
+							removeOrderFromQueue(currentFloor, 1);
 						}
 				}
 		case IDLE:
 	}
 }
 
-func NewOrderInEmptyQueue() {
+func NewOrderInEmptyQueue(CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) {
 	printQueues();
-	switch getCurrentState(){
+	currentState := <- CurrentState; CurrentState <- currentState;
+	switch currentState{
 		case RUN_UP:
 		case RUN_DOWN:
 		case DOOR_OPEN:
 		case IDLE:
-			setCurrentDirection(nextDirection(getCurrentFloor(), getCurrentDirection()));
-			SetMotorChan <- getCurrentDirection();
-			switch getCurrentDirection(){
+			currentFloor := <- CurrentFloor; CurrentFloor <- currentFloor;
+			currentDirection := <-CurrentDirection;
+			currentDirection = nextDirection(currentFloor, currentDirection);
+			CurrentDirection <- currentDirection;
+			SetMotorChan <- currentDirection;
+			switch currentDirection{
 				case 1:
-					setCurrentState(RUN_UP);
+					<-CurrentState; CurrentState <- RUN_UP;
 
 				case 0:
 					EmptyQueues()
 					SetTimerChan <- true;
-					setCurrentState(DOOR_OPEN);
+					<-CurrentState; CurrentState <- DOOR_OPEN;
 				case -1: 
-					setCurrentState(RUN_DOWN);
+					<-CurrentState; CurrentState <- RUN_DOWN;
 			}
 	}
 }
 
-func NewOrderToCurrentFloor() {
-	switch getCurrentState(){
+func NewOrderToCurrentFloor(CurrentState chan State) {
+	currentState := <- CurrentState; CurrentState <- currentState;
+	switch currentState{
 		case RUN_UP:
 		case RUN_DOWN:
 		case DOOR_OPEN:
 			SetTimerChan <- true;
 		case IDLE:
-			setCurrentState(DOOR_OPEN);
+			<- CurrentState; CurrentState <- DOOR_OPEN; 
 			SetTimerChan <- true;
 	}
 }
 
-//Litt "stygge" funksjoner nedenfor
-func CheckIfFloorInQueue(floor int) bool{
-	return checkIfFloorInQueue(floor, getCurrentDirection());
-}
-
-func CheckIfCurrentFloor(floor int) bool {
-	return (floor == getCurrentFloor());
-}
-
-func GetCostForOrder(floor int, buttonType int) int {
-	return getCostForOrder(floor, buttonType, getCurrentDirection(), getCurrentFloor(), getCurrentState());
-}
-
-func InitializeChanLocks(){
-	currentDirectionLockChan <- 1;
-	currentFloorLockChan  <- 1;
-	currentStateLockChan <- 1;
-
-}
-func setCurrentDirection(direction int){
-	<- currentDirectionLockChan
-	currentDirection = direction;
-	currentDirectionLockChan <- 1;
-}
-
-func getCurrentDirection() int{
-	<- currentDirectionLockChan
-	temp := currentDirection;
-	currentDirectionLockChan <- 1;
-	return temp;
-}
-
-func setCurrentFloor(floor int){
-	<-currentFloorLockChan;
-	currentFloor = floor;
-	currentFloorLockChan <- 1;
-}
-
-func getCurrentFloor() int{
-	<- currentFloorLockChan ;
-	temp := currentFloor;
-	currentFloorLockChan  <- 1;
-	return temp;
-}
-
-func setCurrentState(state State) {
-	<- currentStateLockChan;
-	currentState = state;
-	currentStateLockChan <- 1;
-}
-
-func getCurrentState() State{
-	<- currentStateLockChan;
-	temp := currentState;
-	currentStateLockChan <- 1;
-	return temp;
+func CheckIfCurrentFloor(floor int, CurrentFloor chan int) bool {
+	currentFloor := <- CurrentFloor; CurrentFloor <- currentFloor;
+	return (floor == currentFloor);
 }
