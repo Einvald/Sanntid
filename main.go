@@ -12,34 +12,39 @@ const ON = 1
 const OFF = 0
 
 func main() {
+	init := d.Driver_init()
+	fmt.Println(init)
 	Floor_sensor_channel := make(chan int, 1);
 	Order_button_signal_channel := make(chan net.ButtonOrder);
 	Order_data_to_master_channel := make(chan net.OrderData, 1024);
 	Order_data_from_master_channel := make(chan net.OrderData, 1024);
-<<<<<<< HEAD
-	d.Driver_init()
-	d.Driver_set_button_lamp(2, 2, 1);
-	d.Driver_set_motor_direction(-1);
-	elev.EmptyQueues();
-	elev.AddToQueue(0, 2);
-	go checkForInput(Floor_sensor_channel, Order_button_signal_channel)
-	go handleInputChannels(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel)
-	//time.Sleep(100 * time.Millisecond);
-	go handleElevatorCommands(Order_data_to_master_channel);
-	elev.InitializeChanLocks();
-	net.InitializeElevator()
-=======
 	CurrentDirection := make(chan int, 1);
 	CurrentFloor := make(chan int, 1);
 	CurrentState := make(chan elev.State, 1);
 	timerChan := make(chan int64);
+
+	//d.Driver_init()
+	//d.Driver_set_button_lamp(2, 2, 1);
+	//d.Driver_set_motor_direction(-1);
+	//elev.EmptyQueues();
+	//elev.AddToQueue(0, 2);
+	//initializeSystem(CurrentDirection, CurrentFloor, CurrentState);
+	//go checkForInput(Floor_sensor_channel, Order_button_signal_channel, CurrentDirection, CurrentFloor, CurrentState)
+	//go handleInput(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel, CurrentDirection, CurrentFloor, CurrentState)
+	//time.Sleep(100 * time.Millisecond);
+	//go handleElevatorCommands(Order_data_to_master_channel, timerChan);
+	//elev.InitializeChanLocks();
+	//net.InitializeElevator()
+
+	
+	
 	//arrayChan := make(chan [4] int, 100)
 	initializeSystem(CurrentDirection, CurrentFloor, CurrentState);
 	go checkForInput(Floor_sensor_channel, Order_button_signal_channel, CurrentDirection, CurrentFloor, CurrentState)
 	go handleInput(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel, CurrentDirection, CurrentFloor, CurrentState)
 	go handleElevatorCommands(Order_data_to_master_channel, timerChan);
 	go elev.DoorTimer(timerChan, CurrentDirection, CurrentFloor, CurrentState);
->>>>>>> 16980375ae83a12d368465f15cb86f8113170f29
+
 	go net.RunElevator(Order_data_to_master_channel, Order_data_from_master_channel)
 	
 	deadChan := make(chan int);
@@ -50,6 +55,7 @@ func initializeSystem(CurrentDirection chan int, CurrentFloor chan int, CurrentS
 	CurrentState <- elev.RUN_DOWN;
 	CurrentFloor <- 0;
 	CurrentDirection <- -1;
+
 	d.Driver_set_motor_direction(-1);
 	elev.EmptyQueues();
 	elev.AddToQueue(0, 2);
