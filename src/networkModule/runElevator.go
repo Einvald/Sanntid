@@ -46,13 +46,13 @@ func RunElevator(Order_data_to_master_chan chan OrderData, Order_data_from_maste
 	masterStartTime <- 0
 
 	//isOffline := make(chan bool,1) // Vi må se om dette trengs?
+	
 	go updateMasterData(isMasterChan, isBackupChan, isSlaveChan, masterStartTime)
 	go broadcastIp(IP_BROADCAST,portIp) // Fungerer også som Imalive
 	go sendOrderDataToMaster(Order_data_to_master_chan)
 	go handleOrdersFromMaster(Order_data_from_master_chan)
 	for{
 		if isMaster{
-			fmt.Println("HEYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY")
 			<- masterStartTime; masterStartTime <- time.Now().UnixNano()/int64(time.Millisecond)
 			fmt.Println("Er nå Master")
 			fmt.Println("Masterqueue =",masterQueue,"isMaster=",isMaster,"isBackup=",isBackup)
@@ -216,7 +216,7 @@ func updateMasterData(isMasterChan chan bool,isBackupChan chan bool, isSlaveChan
 		    }
 	    }
 	    masterQueueLock <- 1   	
-	    time.Sleep(30 * time.Millisecond)   //kan fucke opp systemet		 
+	    time.Sleep(5 * time.Millisecond)   //kan fucke opp systemet		 
     }  	 				
 	  			
 }
@@ -326,7 +326,7 @@ func broadcastMasterData(IP_BROADCAST string){
 			masterQueueLock <- 1
 			jsonFile := struct2json(sendingObject)
 			broadcastSocket.Write(jsonFile)
-			time.Sleep(30 * time.Millisecond) //Endret
+			time.Sleep(5 * time.Millisecond) //Endret
 		default:
 			time.Sleep(5 * time.Millisecond)					
 

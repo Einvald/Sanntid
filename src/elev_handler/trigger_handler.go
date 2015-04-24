@@ -22,7 +22,6 @@ type ButtonLamp struct{
 	TurnOn int;
 }
 
-
 var SetCurrentFloorLampChan = make(chan int);
 var SetButtonLampChan = make(chan ButtonLamp);
 var SetMotorChan = make(chan int)
@@ -33,7 +32,6 @@ func FloorReached(floor int, CurrentDirection chan int, CurrentFloor chan int, C
 	SetCurrentFloorLampChan <- floor;
 	<- CurrentFloor; CurrentFloor <- floor;
 	currentState := <- CurrentState; CurrentState <- currentState;
-
 	switch currentState{
 		case RUN_UP:
 			if CheckIfFloorInQueue(floor, CurrentDirection){ 
@@ -64,8 +62,6 @@ func FloorReached(floor int, CurrentDirection chan int, CurrentFloor chan int, C
 			} 
 		case DOOR_OPEN:
 		case IDLE:
-
-			 
 	}
 }
 
@@ -90,7 +86,6 @@ func TimerOut(CurrentDirection chan int, CurrentFloor chan int, CurrentState cha
 						if prevDirection != 1{
 							removeOrderFromQueue(currentFloor, 0);
 						}
-
 					case 0:
 								removeOrderFromQueue(currentFloor, 0)
 								removeOrderFromQueue(currentFloor, 1)

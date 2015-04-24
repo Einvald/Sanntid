@@ -16,7 +16,6 @@ var queueUp  = [N_FLOORS] int {};
 var queueDown = [N_FLOORS] int {};
 var queueInElev = [N_FLOORS] int {};
 
-
 func nextDirection(currentFloor int, currentDirection int) int {
 	switch currentDirection{
 		case 1:
@@ -45,9 +44,7 @@ func nextDirection(currentFloor int, currentDirection int) int {
 func CheckIfEmptyQueues() bool {
 	for i := range queueUp{
 		if (queueUp[i] >= 0 || queueDown[i] >= 0 || queueInElev[i] >= 0){return false;}
-	}
-	fmt.Println("Empty Queues true");
-	return true;
+	}; return true;
 }
 
 func AddToQueue(floor int, buttonType int){
@@ -78,8 +75,6 @@ func CheckIfFloorInQueue(floor int, CurrentDirection chan int) bool{
 	if floor < 0 {floor = floor*(-1);}
 	currentDirection := <- CurrentDirection;
 	CurrentDirection <- currentDirection;
-
-	fmt.Println("CHECKIFFLOORINQUEUE: ", floor);
 	switch currentDirection{
 		case 1:
 			if queueUp[floor] == floor || queueInElev[floor] == floor{return true;}
@@ -113,27 +108,24 @@ func printQueues(){
 func checkIfOrdersAtHigherFloors(floor int) bool{
 	for i := range queueUp{
 		if ((queueUp[i] == i && i>floor) || (queueInElev[i]==i && i>floor) || (queueDown[i]==i && i>floor)){return true;}
-	}
-	return false;
+	}; return false;
 }
 
 func checkIfOrdersAtLowerFloors(floor int) bool{
 	for i := range queueUp{
 		if ((queueDown[i] == i && i<floor) || (queueInElev[i]==i && i<floor) || (queueUp[i] == i && i<floor)){return true;}
-	}
-	return false;
+	}; return false;
 }
 
 func getQueue(buttonType int) [4] int{
 	switch buttonType{
-	case 0:
-		return queueUp;
-	case 1:
-		return queueDown;
-	case 2:
-		return queueInElev
-	}
-	return queueUp;
+		case 0:
+			return queueUp;
+		case 1:
+			return queueDown;
+		case 2:
+			return queueInElev
+	}; return queueUp;
 }
 
 func GetCostForOrder(floor int, buttonType int, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) int {
@@ -147,24 +139,22 @@ func GetCostForOrder(floor int, buttonType int, CurrentDirection chan int, Curre
 		case 1:
 			switch buttonType {
 				case 0:
-					if currentFloor >= floor{cost+=15;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
+					if currentFloor >= floor{cost+=8;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
 				case 1:
-					cost += 10;
-
+					cost += 5;
 			}
 		case -1:
 			switch buttonType {
 				case 0:
-					cost += 10;
+					cost += 5;
 				case 1:
-					if currentFloor <= floor{cost+=15;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
+					if currentFloor <= floor{cost+=8;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
 			}
 	}
 	stops := amountOfOrdersInQueue(floor, buttonType, currentDirection, currentFloor);
 	cost += stops*3;
 	return cost;
 }
-
 func amountOfOrdersInQueue(floor int, buttonType int, currentDirection int, currentFloor int) int {
 	stopCounter := 0;
 	for i := range queueUp{
@@ -174,59 +164,6 @@ func amountOfOrdersInQueue(floor int, buttonType int, currentDirection int, curr
 	}
 	return stopCounter;
 }
-
 func checkIfOrdersInFloor(floor int) bool{
-	if (queueUp[floor]==floor || queueDown[floor]==floor || queueInElev[floor]==floor){
-		return true;
-	} else {return false;}
+	if (queueUp[floor]==floor || queueDown[floor]==floor || queueInElev[floor]==floor){return true;} else {return false;}
 }
-
-/* Tidligere innmat i amountOfStopsBeforeFloor
-	stopCounter := 0;
-	floorIsOver := floor>currentFloor;
-	switch currentDirection{
-		case 1:
-			switch buttonType{
-				case 0:
-					if floorIsOver{
-						for i := range queueUp{
-							if i == floor {break;}
-							if ((queueUp[i] == i || queueInElev[i] == i) && i>currentFloor){stopCounter++;} 
-						}
-					} else{
-						for i := range queueUp{
-							if queueDown[i]==i || queueInElev[i] == i  {stopCounter++;}
-							if queueUp[i] == i && !(i>floor && i<=currentFloor) && queueInElev[i] != i {stopCounter++;}
-
-						}
-					}
-				case 1:
-						for i := range queueUp{
-							if ((queueUp[i] == i || queueInElev[i] == i) && i>currentFloor){stopCounter++;}
-							if (queueDown[i] == i || (queueInElev[i] == i && i<currentFloor)) && i>floor {stopCounter++;} 
-						}
-			}
-		case -1:
-			switch buttonType{
-				case 0:
-						for i := range queueDown{
-							if ((queueDown[i] == i || queueInElev[i] == i) && i<currentFloor){stopCounter++;}
-							if (queueUp[i] == i || (queueInElev[i] == i && i>=currentFloor)) && i<floor  {stopCounter++;}
-						}
-				case 1:
-					if !floorIsOver && floor != currentFloor{
-						for i := range queueDown{
-							if ((queueDown[i] == i || queueInElev[i] == i) && i<currentFloor && i>floor){stopCounter++;}
-						}
-					} else{
-						for i := range queueUp{
-							if (queueUp[i]==i || queueInElev[i] == i) {stopCounter++;}
-							if queueDown[i] == i && !(i<floor && i>=currentFloor) && queueInElev[i] != i {stopCounter ++;} 
-						}
-			}
-		}
-
-	}
-	fmt.Println("STOPAMOUNT = ", stopCounter);
-	fmt.Println("STOPAMOUNT = ", stopCounter);
-	*/

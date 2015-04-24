@@ -17,6 +17,7 @@ type OrderData struct {
 	Order ButtonOrder
 	Cost int 
 	Ip string
+	Deadline int64
 	
 
 }
@@ -28,7 +29,6 @@ type MessageType int
 	ORDER_COMPLETE
 	REQUEST_AUCTION
 	)
-
 
 type ButtonOrder struct {
 	Floor int
@@ -56,7 +56,7 @@ var recievedOrderComplete = make(chan OrderData, 1024)
 var auctionLock = make(chan int, 1)
 //var unfinishedOrdersLock = make(chan int, 1)
 func handleOrdersInNetwork(){
-	fmt.Println("HAAAAAAAAAAAAAAAAANNNNNNNNNNNNNNNNNNDDDDDDDDDDDDDLLLLLLLLLLLLLLEEEEEEEEEEEEORDERSINNETWORK ER KJØRT!!!! ")
+	unactiveElevatorChan := make(chan string, 1)
 	select{
 		//case unfinishedOrdersLock <-1:
 		case auctionLock <- 1:
@@ -64,7 +64,7 @@ func handleOrdersInNetwork(){
 	}
 
 	
-	fmt.Println("HAAAAAAAAAAAAAAAAANNNNNNNNNNNNNNNNNNDDDDDDDDDDDDDLLLLLLLLLLLLLLEEEEEEEEEEEEORDERSINNETWORK ER KJØRER FORTSATT :D:D:D:D (^ <> ^) ")
+	go checkOrderDeadline(unactiveElevatorChan)
 	go readOrderData(SLAVE_TO_MASTER_PORT)
 	for {
 		if !isMaster{break}
@@ -82,7 +82,7 @@ func handleOrdersInNetwork(){
 		case order := <- recievedOrderChan:
 			if !isInQueue(order){
 				fmt.Println("RecievedOrderChan er nå blitt lest ", order)
-				go auction(order,IP_BROADCAST,BROADCAST_PORT,MASTER_TO_SLAVE_PORT) 
+				go auction(order, unactiveElevatorChan) 
 
 			}
 			// Sjekk om finnes i liste. Legg til hvis ikke
@@ -98,11 +98,11 @@ func handleOrdersInNetwork(){
 
 }
 
-func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string, portSomSlaverLeserFra string){
+func auction(newOrderData OrderData, unactiveElevatorChan chan string){
 	<- auctionLock
 	if !isInQueue(newOrderData){
 		fmt.Println("AUCTION I GANG")
-		deadline := time.Now().UnixNano() / int64(time.Millisecond) + 1000
+		deadline := time.Now().UnixNano() / int64(time.Millisecond) + 800
 		elevatorsInAuction := [] OrderData {} 
 		newOrderData.Type = REQUEST_AUCTION
 		newOrderData.FromMaster = true  
@@ -130,15 +130,23 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 				break
 			}
 		}
+		ip := "nil"
+		select {
+			case ip = <- unactiveElevatorChan:
+			case <-time.After(50 * time.Millisecond):
+				
+		}
+
 		lowestCost := COST_CEILING
 		elevatorWithLowestCost := OrderData {}
 		elevatorWithLowestCost.Cost = COST_CEILING
+		if len(elevatorsInAuction) == 0 {elevatorWithLowestCost = newOrderData}
 		fmt.Println("AUCTIONCHECK", elevatorWithLowestCost)
 		for _,element:= range elevatorsInAuction{
-			if element.Cost < lowestCost{
+
+			if element.Cost < lowestCost && element.Ip != ip {
 				lowestCost = element.Cost
 				elevatorWithLowestCost = element
-
 			}
 			fmt.Println("COSTSJEKKEN på følgende element: ", element)
 		
@@ -150,7 +158,7 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 		elevatorWithLowestCost.Type = ORDER
 		elevatorWithLowestCost.FromMaster = true
 		fmt.Println("ELEVATOR WITH LOWEST COST SIN IP ER FØLGENDE: ", elevatorWithLowestCost.Ip)
-		sendOrderData(elevatorWithLowestCost.Ip,portSomSlaverLeserFra,elevatorWithLowestCost) // Porten her må bestemmes eksternt!!
+		sendOrderData(elevatorWithLowestCost.Ip,MASTER_TO_SLAVE_PORT,elevatorWithLowestCost) // Porten her må bestemmes eksternt!!
 	}
 	auctionLock <- 1	
 }
@@ -186,8 +194,10 @@ func isInQueue(newOrderData OrderData) bool {
 }
 //Funksjoner master bruker	
 func addNewOrder(newOrderData OrderData){ 
+	deadline := time.Now().UnixNano()/int64(time.Millisecond) + 20000
 	allreadyInList := isInQueue (newOrderData)
 	if !allreadyInList {
+		newOrderData.Deadline = deadline
 		unfinishedOrders = append(unfinishedOrders,newOrderData)
 	}
 }
@@ -273,7 +283,7 @@ func sendOrderData(ip string, port string, message OrderData){	//Denne brukes b�
 		    fmt.Println(err)
 		    os.Exit(1)
 	}
-	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 5
+	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 3
 	for {
 		timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 		if timeNow > deadline {
@@ -311,6 +321,20 @@ func sendOrderDataToMaster(Order_data_to_master_chan chan OrderData){
 	}
 }
 
+func checkOrderDeadline(unactiveElevatorChan chan string){
+	//unifinisheOrdersLock
+	for {
+		for _,element := range unfinishedOrders{
+			if !isMaster{break}
+			if element.Deadline < time.Now().UnixNano()/int64(time.Millisecond) {
+				fmt.Println("dett er forbiddenFruit")
+				unactiveElevatorChan <- element.Ip
+				removeOrder(element)
+				recievedOrderChan <- element
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
 
 //Spør om lys skal lyse i alle på alle heispaneler hvis man bestemmer for eksempel ned fra 2. etasje?
-
