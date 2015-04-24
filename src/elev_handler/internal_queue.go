@@ -5,18 +5,19 @@ import(
 	"math"
 	)
 
+type OrderQueueChannels struct{
+	Up chan [N_FLOORS] int;
+	Down chan [N_FLOORS] int;
+	InElev chan [N_FLOORS] int;
+}
+
 const N_FLOORS int = 4
 const N_BUTTONS int = 3
 
-var FinishedOrderChan = make (chan ButtonOrder, 1024);
-var queueUpChan = make(chan [N_FLOORS] int, 1);
-var queueDownChan = make(chan [N_FLOORS] int, 1);
-var queueInElevChan = make(chan [N_FLOORS] int, 1);
-var queueUp  = [N_FLOORS] int {};
-var queueDown = [N_FLOORS] int {};
-var queueInElev = [N_FLOORS] int {};
-
-func nextDirection(currentFloor int, currentDirection int) int {
+func nextDirection(currentFloor int, currentDirection int, queues OrderQueueChannels) int {
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	switch currentDirection{
 		case 1:
 			for i := range queueUp{
@@ -41,83 +42,114 @@ func nextDirection(currentFloor int, currentDirection int) int {
 	return 0;
 }
 
-func CheckIfEmptyQueues() bool {
+func CheckIfEmptyQueues(queues OrderQueueChannels) bool {
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	for i := range queueUp{
 		if (queueUp[i] >= 0 || queueDown[i] >= 0 || queueInElev[i] >= 0){return false;}
 	}; return true;
 }
 
-func AddToQueue(floor int, buttonType int){
+func AddToQueue(floor int, buttonType int, queues OrderQueueChannels){
 	switch buttonType{
 		case 0:
+			queueUp := <- queues.Up
 			queueUp[floor] = floor;
+			queues.Up <- queueUp
 		case 1:
+			queueDown := <- queues.Down
 			queueDown[floor] = floor;
+			queues.Down <- queueDown;
 		case 2: 
+			queueInElev := <- queues.InElev
 			queueInElev[floor] = floor;
+			queues.InElev <- queueInElev 
 	}
 }
 
-func removeOrderFromQueue(floor int, buttonType int){
+func removeOrderFromQueue(floor int, buttonType int, queues OrderQueueChannels, finishedOrderChan chan ButtonOrder){
 	switch buttonType{
 		case 0:
-			if queueUp[floor] == floor{FinishedOrderChan <- ButtonOrder {floor, buttonType};}
+			queueUp := <- queues.Up
+			if queueUp[floor] == floor{finishedOrderChan <- ButtonOrder {floor, buttonType};}
 			queueUp[floor] = -1;
+			queues.Up <- queueUp
 		case 1:
-			if queueDown[floor] == floor{FinishedOrderChan <- ButtonOrder {floor, buttonType};}
+			queueDown := <- queues.Down
+			if queueDown[floor] == floor{finishedOrderChan <- ButtonOrder {floor, buttonType};}
 			queueDown[floor] = -1;
+			queues.Down <- queueDown;
 		case 2:
+			queueInElev := <- queues.InElev
 			queueInElev[floor] = -1;
+			queues.InElev <- queueInElev 
 	}
 }
 
-func CheckIfFloorInQueue(floor int, CurrentDirection chan int) bool{
+func CheckIfFloorInQueue(floor int, CurrentDirection chan int, queues OrderQueueChannels) bool{
 	if floor < 0 {floor = floor*(-1);}
 	currentDirection := <- CurrentDirection;
 	CurrentDirection <- currentDirection;
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	switch currentDirection{
 		case 1:
 			if queueUp[floor] == floor || queueInElev[floor] == floor{return true;}
-			if !checkIfOrdersAtHigherFloors(floor){
+			if !checkIfOrdersAtHigherFloors(floor, queues){
 				if queueDown[floor] == floor{return true;} 
 			}
 		case -1:
 			if queueDown[floor] == floor || queueInElev[floor] == floor{return true;}
-			if !checkIfOrdersAtLowerFloors(floor){
+			if !checkIfOrdersAtLowerFloors(floor, queues){
 				if queueUp[floor] == floor{return true;}
 			}
 	}
 	return false;
 }
 
-func EmptyQueues(){
+func InitializeQueues(queues OrderQueueChannels){
+	queueUp := [N_FLOORS] int {}; queueDown := [N_FLOORS] int {}; queueInElev := [N_FLOORS] int {};
 	for i:=range queueUp{
 		queueUp[i] = -1;
 		queueDown[i] = -1;
 		queueInElev[i] = -1;
 	}
+	queues.Up <- queueUp; queues.Down <- queueDown; queues.InElev <- queueInElev;
 }
 
-func printQueues(){
+func printQueues(queues OrderQueueChannels){
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	for i := range queueUp{
 		fmt.Println(queueUp[i],"  ", queueDown[i],"  ", queueInElev[i]);
 	}
 }
 
-
-func checkIfOrdersAtHigherFloors(floor int) bool{
+func checkIfOrdersAtHigherFloors(floor int, queues OrderQueueChannels) bool{
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	for i := range queueUp{
 		if ((queueUp[i] == i && i>floor) || (queueInElev[i]==i && i>floor) || (queueDown[i]==i && i>floor)){return true;}
 	}; return false;
 }
 
-func checkIfOrdersAtLowerFloors(floor int) bool{
+func checkIfOrdersAtLowerFloors(floor int, queues OrderQueueChannels) bool{
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	for i := range queueUp{
 		if ((queueDown[i] == i && i<floor) || (queueInElev[i]==i && i<floor) || (queueUp[i] == i && i<floor)){return true;}
 	}; return false;
 }
 
-func getQueue(buttonType int) [4] int{
+func getQueue(buttonType int, queues OrderQueueChannels) [4] int{
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	switch buttonType{
 		case 0:
 			return queueUp;
@@ -128,10 +160,10 @@ func getQueue(buttonType int) [4] int{
 	}; return queueUp;
 }
 
-func GetCostForOrder(floor int, buttonType int, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) int {
-	currentDirection := <- CurrentDirection; CurrentDirection <- currentDirection;
-	currentFloor := <- CurrentFloor; CurrentFloor <- currentFloor;
-	currentState := <- CurrentState; CurrentState <- currentState;
+func GetCostForOrder(floor int, buttonType int, values CurrentElevValues, queues OrderQueueChannels) int {
+	currentDirection := <- values.Direction; values.Direction <- currentDirection;
+	currentFloor := <- values.Floor; values.Floor <- currentFloor;
+	currentState := <- values.State; values.State <- currentState;
 	cost := 0;
 	if currentState== IDLE {cost += (int(math.Abs(float64(floor - currentFloor))*3));} else if currentState == DOOR_OPEN{cost+=3;}
 	if currentState == DOOR_OPEN && ((currentDirection == 1 && buttonType == 0) || (currentDirection == -1 && buttonType == 1)) && floor == currentFloor {return 0;}
@@ -151,11 +183,14 @@ func GetCostForOrder(floor int, buttonType int, CurrentDirection chan int, Curre
 					if currentFloor <= floor{cost+=8;} else{cost += (int(math.Abs(float64(floor - currentFloor))*3));}
 			}
 	}
-	stops := amountOfOrdersInQueue(floor, buttonType, currentDirection, currentFloor);
+	stops := amountOfOrdersInQueue(floor, buttonType, currentDirection, currentFloor, queues);
 	cost += stops*3;
 	return cost;
 }
-func amountOfOrdersInQueue(floor int, buttonType int, currentDirection int, currentFloor int) int {
+func amountOfOrdersInQueue(floor int, buttonType int, currentDirection int, currentFloor int, queues OrderQueueChannels) int {
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	stopCounter := 0;
 	for i := range queueUp{
 		if queueUp[i] == i {stopCounter += 1;}
@@ -164,6 +199,9 @@ func amountOfOrdersInQueue(floor int, buttonType int, currentDirection int, curr
 	}
 	return stopCounter;
 }
-func checkIfOrdersInFloor(floor int) bool{
+func checkIfOrdersInFloor(floor int, queues OrderQueueChannels) bool{
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	if (queueUp[floor]==floor || queueDown[floor]==floor || queueInElev[floor]==floor){return true;} else {return false;}
 }

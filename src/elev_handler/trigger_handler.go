@@ -22,116 +22,122 @@ type ButtonLamp struct{
 	TurnOn int;
 }
 
-var SetCurrentFloorLampChan = make(chan int);
-var SetButtonLampChan = make(chan ButtonLamp);
-var SetMotorChan = make(chan int)
-var SetTimerChan = make(chan bool, 1)
+type CurrentElevValues struct{
+	Direction chan int;
+	Floor chan int; 
+	State chan State;
+}
 
-func FloorReached(floor int, CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State){
+type OutputChans struct{
+	FloorLamp chan int;
+	Button chan ButtonLamp;
+	Motor chan int;
+	Timer chan bool;
+	FinishedOrder chan ButtonOrder;
+}
+
+func FloorReached(floor int,  values CurrentElevValues, queues OrderQueueChannels, output OutputChans){
 	if floor<0{floor = floor*(-1)}
-	SetCurrentFloorLampChan <- floor;
-	<- CurrentFloor; CurrentFloor <- floor;
-	currentState := <- CurrentState; CurrentState <- currentState;
+	output.FloorLamp <- floor;
+	<- values.Floor; values.Floor <- floor;
+	currentState := <- values.State; values.State <- currentState;
 	switch currentState{
 		case RUN_UP:
-			if CheckIfFloorInQueue(floor, CurrentDirection){ 
-				
-				<-CurrentState; CurrentState <- DOOR_OPEN;
-				SetTimerChan <- true;
-				SetButtonLampChan <- ButtonLamp {floor, 2, 0};
-				removeOrderFromQueue(floor, 0); 
-				removeOrderFromQueue(floor, 2);
-				if !checkIfOrdersAtHigherFloors(floor){
-					removeOrderFromQueue(floor, 1);
+			if CheckIfFloorInQueue(floor, values.Direction, queues){ 
+				<-values.State; values.State <- DOOR_OPEN;
+				output.Timer <- true;
+				output.Button <- ButtonLamp {floor, 2, 0};
+				removeOrderFromQueue(floor, 0, queues, output.FinishedOrder); 
+				removeOrderFromQueue(floor, 2, queues, output.FinishedOrder);
+				if !checkIfOrdersAtHigherFloors(floor, queues){
+					removeOrderFromQueue(floor, 1, queues, output.FinishedOrder);
 				}
-				printQueues();
+				printQueues(queues);
 			}
 					
 		case RUN_DOWN:
-			if CheckIfFloorInQueue(floor, CurrentDirection){ 
+			if CheckIfFloorInQueue(floor, values.Direction, queues){ 
 
-				<-CurrentState; CurrentState <- DOOR_OPEN;
-				SetTimerChan <- true;
-				SetButtonLampChan <- ButtonLamp {floor, 2, 0};
-				if !checkIfOrdersAtLowerFloors(floor){
-					removeOrderFromQueue(floor, 0);
+				<-values.State; values.State <- DOOR_OPEN;
+				output.Timer <- true;
+				output.Button <- ButtonLamp {floor, 2, 0};
+				if !checkIfOrdersAtLowerFloors(floor, queues){
+					removeOrderFromQueue(floor, 0, queues, output.FinishedOrder);
 				}
-				removeOrderFromQueue(floor, 1);
-				removeOrderFromQueue(floor, 2);
-				printQueues();
+				removeOrderFromQueue(floor, 1, queues, output.FinishedOrder);
+				removeOrderFromQueue(floor, 2, queues, output.FinishedOrder);
+				printQueues(queues);
 			} 
 		case DOOR_OPEN:
 		case IDLE:
 	}
 }
 
-func TimerOut(CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) {
-	currentState := <- CurrentState; CurrentState <- currentState;
+func TimerOut(values CurrentElevValues, queues OrderQueueChannels, output OutputChans) {
+	currentState := <- values.State; values.State <- currentState;
 	switch currentState{
 		case RUN_UP:
 		case RUN_DOWN:
 		case DOOR_OPEN:
-				SetTimerChan <- false;
-				currentFloor := <- CurrentFloor;
-				CurrentFloor <- currentFloor;
-				prevDirection := <- CurrentDirection;
-				currentDirection := nextDirection(currentFloor, prevDirection); 
-				CurrentDirection <- currentDirection;
-				SetMotorChan <- currentDirection;
+				output.Timer <- false;
+				currentFloor := <- values.Floor;
+				values.Floor <- currentFloor;
+				prevDirection := <- values.Direction;
+				currentDirection := nextDirection(currentFloor, prevDirection, queues); 
+				values.Direction <- currentDirection;
+				output.Motor <- currentDirection;
 				switch currentDirection{
 					case 1:
-						<-CurrentState; CurrentState <- RUN_UP;
-						removeOrderFromQueue(currentFloor, 2);
-						SetButtonLampChan <- ButtonLamp {currentFloor, 2, 0};
+						<-values.State; values.State <- RUN_UP;
+						removeOrderFromQueue(currentFloor, 2, queues, output.FinishedOrder);
+						output.Button <- ButtonLamp {currentFloor, 2, 0};
 						if prevDirection != 1{
-							removeOrderFromQueue(currentFloor, 0);
+							removeOrderFromQueue(currentFloor, 0, queues, output.FinishedOrder);
 						}
 					case 0:
-								removeOrderFromQueue(currentFloor, 0)
-								removeOrderFromQueue(currentFloor, 1)
-								removeOrderFromQueue(currentFloor, 2)
-								SetButtonLampChan <- ButtonLamp {currentFloor, 2, 0};
-								<-CurrentState; CurrentState <- IDLE;
+								for i := 0; i<3; i++ {removeOrderFromQueue(currentFloor, i, queues, output.FinishedOrder)}
+								output.Button <- ButtonLamp {currentFloor, 2, 0};
+								<-values.State; values.State <- IDLE;
 					case -1: 
-						<-CurrentState; CurrentState <- RUN_DOWN;
-						removeOrderFromQueue(currentFloor, 2);
-						SetButtonLampChan <- ButtonLamp {currentFloor, 2, 0};
+						<-values.State; values.State <- RUN_DOWN;
+						removeOrderFromQueue(currentFloor, 2, queues, output.FinishedOrder);
+						output.Button <- ButtonLamp {currentFloor, 2, 0};
 						if prevDirection != -1{
-							removeOrderFromQueue(currentFloor, 1);
+							removeOrderFromQueue(currentFloor, 1, queues, output.FinishedOrder);
 						}
 				}
 		case IDLE:
 	}
 }
 
-func NewOrderInEmptyQueue(CurrentDirection chan int, CurrentFloor chan int, CurrentState chan State) {
-	printQueues();
-	currentState := <- CurrentState; CurrentState <- currentState;
+func NewOrderInEmptyQueue(values CurrentElevValues, queues OrderQueueChannels, output OutputChans) {
+	printQueues(queues);
+	currentState := <- values.State; values.State <- currentState;
 	switch currentState{
 		case RUN_UP:
 		case RUN_DOWN:
 		case DOOR_OPEN:
 		case IDLE:
-			currentFloor := <- CurrentFloor; CurrentFloor <- currentFloor;
-			currentDirection := <-CurrentDirection;
-			currentDirection = nextDirection(currentFloor, currentDirection);
-			CurrentDirection <- currentDirection;
-			SetMotorChan <- currentDirection;
+			currentFloor := <- values.Floor; values.Floor <- currentFloor;
+			currentDirection := <-values.Direction;
+			currentDirection = nextDirection(currentFloor, currentDirection, queues);
+			values.Direction <- currentDirection;
+			output.Motor <- currentDirection;
 			switch currentDirection{
 				case 1:
-					<-CurrentState; CurrentState <- RUN_UP;
+					<-values.State; values.State <- RUN_UP;
 
 				case 0:
-					EmptyQueues()
-					SetTimerChan <- true;
-					<-CurrentState; CurrentState <- DOOR_OPEN;
+					for i := 0; i<3; i++ {removeOrderFromQueue(currentFloor, i, queues, output.FinishedOrder)}
+					output.Timer <- true;
+					<-values.State; values.State <- DOOR_OPEN;
 				case -1: 
-					<-CurrentState; CurrentState <- RUN_DOWN;
+					<-values.State; values.State <- RUN_DOWN;
 			}
 	}
 }
 
-func NewOrderToCurrentFloor(CurrentState chan State) {
+func NewOrderToCurrentFloor(CurrentState chan State, SetTimerChan chan bool) {
 	currentState := <- CurrentState; CurrentState <- currentState;
 	switch currentState{
 		case RUN_UP:
@@ -144,7 +150,10 @@ func NewOrderToCurrentFloor(CurrentState chan State) {
 	}
 }
 
-func CheckIfCurrentFloor(floor int, CurrentFloor chan int) bool {
+func CheckIfCurrentFloor(floor int, CurrentFloor chan int, queues OrderQueueChannels) bool {
+	queueUp := <- queues.Up; queues.Up <- queueUp; 
+	queueDown := <- queues.Down; queues.Down <- queueDown;
+	queueInElev := <- queues.InElev; queues.InElev <- queueInElev;
 	currentFloor := <- CurrentFloor; CurrentFloor <- currentFloor;
 	return (floor == currentFloor);
 }
