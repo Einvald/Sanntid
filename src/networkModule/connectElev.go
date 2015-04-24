@@ -11,10 +11,9 @@ import (
 
 func InitializeElevator() {
 	masterQueueLock <- 1 
-	portMasterQueue := "20019"
 	myIp = getIpAddr()
 	fmt.Println("Dette er min IP",myIp)
-	isEmpty := setMasterQueue(portMasterQueue)
+	isEmpty := setMasterQueue(PORT_MASTER_DATA)
 	<- masterQueueLock 
 	if isEmpty{
 		fmt.Println("jeg er Master")
@@ -36,6 +35,7 @@ func getIpAddr() string {
 	if err != nil {
 		os.Stderr.WriteString("Oops: " + err.Error() + "\n")
 		os.Exit(1)
+
 	}
 
 	for _, a := range addrs {
@@ -51,12 +51,12 @@ func getIpAddr() string {
 	return streng
 }
 	
-func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNumber osv i funksjonene nedover
+func setMasterQueue(PORT_MASTER_DATA string) bool{	// må endre navna på portNumber osv i funksjonene nedover
 	bufferToRead := make([] byte, 1024)
-	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+portMasterQueue)
+	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+PORT_MASTER_DATA)
 	
 	if err != nil {
-                fmt.Println("error resolving UDP address on ", portMasterQueue)
+                fmt.Println("error resolving UDP address on ", PORT_MASTER_DATA)
                 fmt.Println(err)
                 os.Exit(1)
         }
@@ -64,7 +64,7 @@ func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNum
     readerSocket ,err := net.ListenUDP("udp",UDPadr)
     
     if err != nil {
-            fmt.Println("error listening on UDP port ", portMasterQueue)
+            fmt.Println("error listening on UDP port ", PORT_MASTER_DATA)
             fmt.Println(err)
             os.Exit(1)
 	}
@@ -76,9 +76,6 @@ func setMasterQueue(portMasterQueue string) bool{	// må endre navna på portNum
  	if err != nil {
         return true
     }
-    
-    
-
    	if n > 0 {
        	//fmt.Println("printer melding vi leste over UDP",json2struct(bufferToRead,n))  
         structObject := DataObject{} 

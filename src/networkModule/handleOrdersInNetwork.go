@@ -42,9 +42,9 @@ type ButtonOrder struct {
 //Diskuter kommentar linje 147 runElevator
 
 const IP_BROADCAST = "129.241.187.255"
-const BROADCAST_PORT = "20012"
-const SLAVE_TO_MASTER_PORT = "20013"
-const MASTER_TO_SLAVE_PORT = "20014"
+const BROADCAST_PORT = "31012"
+const SLAVE_TO_MASTER_PORT = "31015"
+const MASTER_TO_SLAVE_PORT = "31014"
 const COST_CEILING = 100 
 var unfinishedOrders = [] OrderData{}
 var recievedMessageToMaster = make(chan OrderData, 1024)
@@ -54,13 +54,20 @@ var recievedCostChan = make(chan OrderData,1024)
 var recievedOrderChan =make(chan OrderData,1024)  
 var recievedOrderComplete = make(chan OrderData, 1024) 
 var auctionLock = make(chan int, 1)
-var unfinishedOrdersLock = make(chan int, 1)
+//var unfinishedOrdersLock = make(chan int, 1)
 func handleOrdersInNetwork(){
+	fmt.Println("HAAAAAAAAAAAAAAAAANNNNNNNNNNNNNNNNNNDDDDDDDDDDDDDLLLLLLLLLLLLLLEEEEEEEEEEEEORDERSINNETWORK ER KJØRT!!!! ")
+	select{
+		//case unfinishedOrdersLock <-1:
+		case auctionLock <- 1:
+		case <-time.After(100 * time.Millisecond):
+	}
 
-	unfinishedOrdersLock <- 1
-	auctionLock <- 1
+	
+	fmt.Println("HAAAAAAAAAAAAAAAAANNNNNNNNNNNNNNNNNNDDDDDDDDDDDDDLLLLLLLLLLLLLLEEEEEEEEEEEEORDERSINNETWORK ER KJØRER FORTSATT :D:D:D:D (^ <> ^) ")
 	go readOrderData(SLAVE_TO_MASTER_PORT)
 	for {
+		if !isMaster{break}
 		select{
 		case recievedData := <- recievedMessageToMaster:
 			//fmt.Println("INNE I HANDLEORDERSINNETWORK har mottat type: ", recievedData.Type)
@@ -80,11 +87,11 @@ func handleOrdersInNetwork(){
 			}
 			// Sjekk om finnes i liste. Legg til hvis ikke
 		case orderComplete := <- recievedOrderComplete:
-			<- unfinishedOrdersLock
+			//<- unfinishedOrdersLock
 			orderComplete.FromMaster = true 
 			removeOrder(orderComplete)
 			sendOrderData(IP_BROADCAST,MASTER_TO_SLAVE_PORT,orderComplete)
-			unfinishedOrdersLock <- 1 
+			//unfinishedOrdersLock <- 1 
 		}
 		
 	}
@@ -95,7 +102,7 @@ func auction(newOrderData OrderData, IP_BROADCAST string, BROADCAST_PORT string,
 	<- auctionLock
 	if !isInQueue(newOrderData){
 		fmt.Println("AUCTION I GANG")
-		deadline := time.Now().UnixNano() / int64(time.Millisecond) + 800
+		deadline := time.Now().UnixNano() / int64(time.Millisecond) + 1000
 		elevatorsInAuction := [] OrderData {} 
 		newOrderData.Type = REQUEST_AUCTION
 		newOrderData.FromMaster = true  
@@ -165,7 +172,7 @@ func handleOrdersFromMaster(Order_data_from_master_chan chan OrderData){
 
 func isInQueue(newOrderData OrderData) bool {
 	newOrder := newOrderData.Order
-	<- unfinishedOrdersLock
+	//<- unfinishedOrdersLock
 	allreadyInList := false
 	for _,element:= range unfinishedOrders{
 		if element.Order == newOrder{			
@@ -173,7 +180,7 @@ func isInQueue(newOrderData OrderData) bool {
 			break
 		}
 	}
-	unfinishedOrdersLock <- 1
+	//unfinishedOrdersLock <- 1
 	return allreadyInList
 
 }
@@ -204,7 +211,11 @@ func removeOrder(orderComplete OrderData){
 
 
 //Funksjoner som alle bruker
-func readOrderData(port string){  			
+func readOrderData(port string){
+	fmt.Println("READ ORDER DATA ER KJØRT SOM GO ROUTINE " , isMaster)
+	fmt.Println(port)
+	fmt.Println(port == SLAVE_TO_MASTER_PORT && isMaster)
+
 	bufferToRead := make([] byte, 1024)
 	
 	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+port)
@@ -223,13 +234,11 @@ func readOrderData(port string){
         os.Exit(1)
 	}
 	for {
-		n,_, err := readerSocket.ReadFromUDP(bufferToRead)  
-	 	if err != nil {
-            fmt.Println("error reading data from connection")
-            fmt.Println(err)
-            os.Exit(1)     
-        }
-        
+
+		if (port == SLAVE_TO_MASTER_PORT && !isMaster){break}
+		deadline := time.Now().Add(100*time.Millisecond)
+		readerSocket.SetReadDeadline(deadline)
+		n,_, _ := readerSocket.ReadFromUDP(bufferToRead)     
        	if n > 0 { 
             structObject := json2struct(bufferToRead,n)
             data := structObject.OrderMessage
@@ -239,12 +248,13 @@ func readOrderData(port string){
             
             }else if !data.FromMaster{
             	recievedMessageToMaster <- data
-            	fmt.Println("RECIEVEDMESSAGE TO MASTER CHANNEL IS SET")
             } 
             
         }
         time.Sleep(30 * time.Millisecond)
    	}
+   	fmt.Println("LUkker readerSocket i readOrderData")
+   	readerSocket.Close()
 }
 	//Hvis til Master legges det på masterkanalen, hvis ikke på den andre kanalen
 

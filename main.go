@@ -32,18 +32,18 @@ func main() {
 	//go checkForInput(Floor_sensor_channel, Order_button_signal_channel, CurrentDirection, CurrentFloor, CurrentState)
 	//go handleInput(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel, CurrentDirection, CurrentFloor, CurrentState)
 	//time.Sleep(100 * time.Millisecond);
-	//go handleElevatorCommands(Order_data_to_master_channel, timerChan);
+	//go handleElevatorCommands(Order_data_to_masannter_channel, timerChan);
 	//elev.InitializeChanLocks();
 	//net.InitializeElevator()
-
-	
-	
-	//arrayChan := make(chan [4] int, 100)
-	initializeSystem(CurrentDirection, CurrentFloor, CurrentState);
 	go checkForInput(Floor_sensor_channel, Order_button_signal_channel, CurrentDirection, CurrentFloor, CurrentState)
 	go handleInput(Floor_sensor_channel, Order_button_signal_channel, Order_data_from_master_channel, Order_data_to_master_channel, CurrentDirection, CurrentFloor, CurrentState)
 	go handleElevatorCommands(Order_data_to_master_channel, timerChan);
 	go elev.DoorTimer(timerChan, CurrentDirection, CurrentFloor, CurrentState);
+	
+	
+	//arrayChan := make(chan [4] int, 100)
+	initializeSystem(CurrentDirection, CurrentFloor, CurrentState);
+	
 
 	go net.RunElevator(Order_data_to_master_channel, Order_data_from_master_channel)
 	
