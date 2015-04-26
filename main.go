@@ -19,6 +19,31 @@ func main() {
 	<- deadChan;
 }
 
+func runInternalElevator(orderDataToMasterChannel chan net.OrderData, orderDataFromMasterChannel chan net.OrderData){
+	floorSensorChannel := make(chan int, 1);
+	orderButtonSignalChannel := make(chan net.ButtonOrder);
+	currentDirection := make(chan int, 1);
+	currentFloor := make(chan int, 1);
+	currentState := make(chan elev.State, 1);
+	currentElevValues := elev.CurrentElevValues {currentDirection, currentFloor, currentState}
+	setCurrentFloorLampChan := make(chan int);
+	setButtonLampChan := make(chan elev.ButtonLamp);
+	setMotorChan := make(chan int);
+	setTimerChan := make(chan bool, 1);
+	finishedOrderChan := make (chan elev.ButtonOrder, 1024);
+	outputCommands := elev.OutputChans {setCurrentFloorLampChan, setButtonLampChan, setMotorChan, setTimerChan, finishedOrderChan}
+	timerChan := make(chan int64);
+	queueUpChan := make(chan [elev.N_FLOORS] int, 1)
+	queueDownChan := make(chan [elev.N_FLOORS] int, 1)
+	queueInElevChan := make(chan [elev.N_FLOORS] int, 1)
+	orderQueueChannels := elev.OrderQueueChannels {queueUpChan, queueDownChan, queueInElevChan}
+	go checkForInput(floorSensorChannel, orderButtonSignalChannel, currentDirection, orderQueueChannels)
+	go handleInput(floorSensorChannel, orderButtonSignalChannel, orderDataFromMasterChannel, orderDataToMasterChannel, currentElevValues, orderQueueChannels, outputCommands)
+	go handleElevatorCommands(orderDataToMasterChannel, timerChan, outputCommands);
+	go elev.DoorTimer(timerChan, currentElevValues, orderQueueChannels, outputCommands);
+	initializeSystem(currentElevValues, orderQueueChannels);
+}
+
 func handleInput(floorSensorChannel chan int, orderButtonSignalChannel chan net.ButtonOrder, orderDataFromMasterChannel chan net.OrderData, orderDataToMasterChannel chan net.OrderData, currentElevValues elev.CurrentElevValues, orderQueueChannels elev.OrderQueueChannels, outputCommands elev.OutputChans) {
 	for{
 		select {
@@ -117,31 +142,6 @@ func handleElevatorCommands(orderDataToMasterChannel chan net.OrderData, timerCh
 				orderDataToMasterChannel <- orderData;
 		}
 	}
-}
-
-func runInternalElevator(orderDataToMasterChannel chan net.OrderData, orderDataFromMasterChannel chan net.OrderData){
-	floorSensorChannel := make(chan int, 1);
-	orderButtonSignalChannel := make(chan net.ButtonOrder);
-	currentDirection := make(chan int, 1);
-	currentFloor := make(chan int, 1);
-	currentState := make(chan elev.State, 1);
-	currentElevValues := elev.CurrentElevValues {currentDirection, currentFloor, currentState}
-	setCurrentFloorLampChan := make(chan int);
-	setButtonLampChan := make(chan elev.ButtonLamp);
-	setMotorChan := make(chan int);
-	setTimerChan := make(chan bool, 1);
-	finishedOrderChan := make (chan elev.ButtonOrder, 1024);
-	outputCommands := elev.OutputChans {setCurrentFloorLampChan, setButtonLampChan, setMotorChan, setTimerChan, finishedOrderChan}
-	timerChan := make(chan int64);
-	queueUpChan := make(chan [elev.N_FLOORS] int, 1)
-	queueDownChan := make(chan [elev.N_FLOORS] int, 1)
-	queueInElevChan := make(chan [elev.N_FLOORS] int, 1)
-	orderQueueChannels := elev.OrderQueueChannels {queueUpChan, queueDownChan, queueInElevChan}
-	go checkForInput(floorSensorChannel, orderButtonSignalChannel, currentDirection, orderQueueChannels)
-	go handleInput(floorSensorChannel, orderButtonSignalChannel, orderDataFromMasterChannel, orderDataToMasterChannel, currentElevValues, orderQueueChannels, outputCommands)
-	go handleElevatorCommands(orderDataToMasterChannel, timerChan, outputCommands);
-	go elev.DoorTimer(timerChan, currentElevValues, orderQueueChannels, outputCommands);
-	initializeSystem(currentElevValues, orderQueueChannels);
 }
 
 func initializeSystem(currentElevValues elev.CurrentElevValues, orderQueueChannels elev.OrderQueueChannels){

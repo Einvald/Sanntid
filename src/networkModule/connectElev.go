@@ -1,24 +1,22 @@
 package networkModule
 																
 import (
-    	"fmt"
     	"net"
     	"time"
+    	"fmt"
 	)
 
 func initializeElevatorConnection(myIp string,masterQueueChan chan []IpObject, becomeMasterChan chan int,becomeBackupChan chan int) {
 	isEmpty := setMasterQueue(PORT_MASTER_DATA,masterQueueChan)
 	if isEmpty{
-		fmt.Println("jeg er Master")
 		becomeMasterChan <- 1 
 	}
 	masterQueue := <- masterQueueChan; 
 	if len(masterQueue)==1{
 		becomeBackupChan <- 1
-		fmt.Println("jeg er Backup")
 	}
 	masterQueueChan <- masterQueue 
-	fmt.Println("Heisen med Ip:",myIp,"er nå initialisert.")
+	fmt.Println("The elevator with ip:",myIp,"has now been initialized")
 }
 func getIpAddr() string {
 	addrs, _ := net.InterfaceAddrs()

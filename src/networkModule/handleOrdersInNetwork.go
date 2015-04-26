@@ -104,9 +104,9 @@ func auction(newOrderData OrderData, unactiveElevatorChan chan string,masterQueu
 			case <-time.After(50 * time.Millisecond):
 		}
 		lowestCost := COST_CEILING
-		elevatorWithLowestCost := OrderData {}
+		elevatorWithLowestCost := newOrderData
 		elevatorWithLowestCost.Cost = COST_CEILING
-		if len(elevatorsInAuction) == 0 {elevatorWithLowestCost = newOrderData}
+		
 		for _,element:= range elevatorsInAuction{
 
 			if element.Cost < lowestCost && element.Ip != ip {
@@ -150,7 +150,7 @@ func isInQueue(newOrderData OrderData,unfinishedOrdersChan chan []OrderData) boo
 }
 
 func addNewOrder(newOrderData OrderData, unfinishedOrdersChan chan []OrderData){
-	deadline := time.Now().UnixNano()/int64(time.Millisecond) + 30000
+	deadline := time.Now().UnixNano()/int64(time.Millisecond) + 20000
 	allreadyInList := isInQueue (newOrderData,unfinishedOrdersChan)
 	unfinishedOrders := <- unfinishedOrdersChan
 	if !allreadyInList {
@@ -203,7 +203,7 @@ func readOrderData(port string, isMasterChan chan bool,recievedMessageToMaster c
 func sendOrderData(ip string, port string, message OrderData){
 	udpAddr,_ := net.ResolveUDPAddr("udp",ip+":"+port)
 	broadcastSocket,_ := net.DialUDP("udp",nil, udpAddr)	
-	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 3
+	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 2
 	for {
 		timeNow := time.Now().UnixNano() / int64(time.Millisecond)
 		if timeNow > deadline {

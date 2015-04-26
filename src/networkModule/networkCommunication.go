@@ -53,17 +53,18 @@ func RunNetworkCommunication(orderDataToMasterChan chan OrderData, orderDataFrom
 			case <-becomeMasterChan:
 				<-isMasterChan; isMasterChan <- true
 				<- masterStartTime; masterStartTime <- time.Now().UnixNano()/int64(time.Millisecond)
-				fmt.Println("Is Master")
+				fmt.Println("Is master")
 				go listenForActiveElevators(recieveIpChan,isMasterChan)
 				go updateElevators(masterQueueChan,recieveIpChan,isMasterChan,isBackupChan) 
 				go broadcastMasterData(masterQueueChan,isMasterChan,unfinishedOrdersChan)					
 				go handleDeadElevators(masterQueueChan,isMasterChan,myIp,unfinishedOrdersChan,recievedOrderChan)
 				go handleOrdersInNetwork(isMasterChan,masterQueueChan,unfinishedOrdersChan, recievedMessage,recievedMessageToMaster, recievedOrderChan)			
 				<-becomeSlaveChan
+				fmt.Println("Is slave ")
 				<-isMasterChan; isMasterChan <- false
 			case <-becomeBackupChan:
 				<-isBackupChan; isBackupChan <- true
-				fmt.Println("Is Backup")
+				fmt.Println("Is backup")
 				<- becomeMasterChan	
 				<-isBackupChan; isBackupChan <- false
 				becomeMasterChan <- 1	
