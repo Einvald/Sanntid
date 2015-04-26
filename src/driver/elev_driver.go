@@ -1,12 +1,7 @@
 package driver
-import (
-	"fmt"
-	)
-// All function which starts with D_ is driver-functions
 
 const N_FLOORS int = 4
 const N_BUTTONS int = 3
-
 
 var lamp_channel_matrix = [N_FLOORS][N_BUTTONS] int{
 {LIGHT_UP1, LIGHT_DOWN1, LIGHT_COMMAND1},
@@ -20,7 +15,6 @@ var button_channel_matrix = [N_FLOORS][N_BUTTONS] int{
 {BUTTON_UP3, BUTTON_DOWN3, BUTTON_COMMAND3},
 {BUTTON_UP4, BUTTON_DOWN4, BUTTON_COMMAND4},
 }
-
 
 func Driver_init() int {
 	if(!Io_init()){
@@ -42,7 +36,6 @@ func Driver_init() int {
 }
 
 func Driver_set_motor_direction(direction int){
-	fmt.Println("Setter motorretning i retning", direction);
 	switch {
 		case direction == 0:
 			Io_write_analog(MOTOR, 0)
@@ -127,10 +120,3 @@ func Driver_get_button_signal(buttonType int, floor int) int{
 	}
 	return 0;
 }
-
-
-
-
-
-
-

@@ -1,6 +1,5 @@
 package main
 import(
-	"fmt"
 	d "driver"
 	elev "elev_handler"
 	"time"
@@ -15,7 +14,7 @@ func main() {
 	orderDataToMasterChannel := make(chan net.OrderData, 1024);
 	orderDataFromMasterChannel := make(chan net.OrderData, 1024);
 	runInternalElevator(orderDataToMasterChannel, orderDataFromMasterChannel)
-	runNetworkCommunication(orderDataToMasterChannel, orderDataFromMasterChannel)	
+	go net.RunNetworkCommunication(orderDataToMasterChannel, orderDataFromMasterChannel)	
 	deadChan := make(chan int);
 	<- deadChan;
 }
@@ -66,14 +65,12 @@ func handleInput(floorSensorChannel chan int, orderButtonSignalChannel chan net.
 	}
 }
 
-
 func checkForInput(floorSensorChannel chan int, orderButtonSignalChannel chan net.ButtonOrder, currentDirection chan int, orderQueueChannels elev.OrderQueueChannels){
 	floorSensored := 0;
 	floorPushed := [elev.N_FLOORS * elev.N_BUTTONS] int{};
 	for i := range floorPushed{floorPushed[i] = 0;}
 	for {
 		if d.Driver_get_floor_sensor_signal() != (-1) && floorSensored ==0 {
-			fmt.Println("reached floor")
 			if elev.CheckIfFloorInQueue(d.Driver_get_floor_sensor_signal(), currentDirection, orderQueueChannels){
 					d.Driver_set_motor_direction(0);
 			}
@@ -104,7 +101,6 @@ func handleElevatorCommands(orderDataToMasterChannel chan net.OrderData, timerCh
 			case floor := <- outputCommands.FloorLamp:
 				d.Driver_set_floor_indicator(floor);
 			case direction := <- outputCommands.Motor:
-				fmt.Println("Endret motor retning til: ", direction)
 				d.Driver_set_motor_direction(direction);
 			case turnOn := <- outputCommands.Timer:
 					if turnOn{
@@ -141,7 +137,6 @@ func runInternalElevator(orderDataToMasterChannel chan net.OrderData, orderDataF
 	queueDownChan := make(chan [elev.N_FLOORS] int, 1)
 	queueInElevChan := make(chan [elev.N_FLOORS] int, 1)
 	orderQueueChannels := elev.OrderQueueChannels {queueUpChan, queueDownChan, queueInElevChan}
-
 	go checkForInput(floorSensorChannel, orderButtonSignalChannel, currentDirection, orderQueueChannels)
 	go handleInput(floorSensorChannel, orderButtonSignalChannel, orderDataFromMasterChannel, orderDataToMasterChannel, currentElevValues, orderQueueChannels, outputCommands)
 	go handleElevatorCommands(orderDataToMasterChannel, timerChan, outputCommands);
@@ -157,9 +152,4 @@ func initializeSystem(currentElevValues elev.CurrentElevValues, orderQueueChanne
 	elev.InitializeQueues(orderQueueChannels)
 	elev.AddToQueue(0, 2, orderQueueChannels);
 	d.Driver_set_button_lamp(2, 0, 1);
-	net.InitializeElevator()
-}
-
-func runNetworkCommunication(orderDataToMasterChannel chan net.OrderData, orderDataFromMasterChannel chan net.OrderData){
-	go net.RunElevator(orderDataToMasterChannel, orderDataFromMasterChannel)
 }

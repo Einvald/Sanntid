@@ -1,9 +1,5 @@
 package elev_handler
 
-import(
-	//"fmt"
-	)
-
 type State int
 const (
 RUN_UP State = 0 + iota
@@ -57,7 +53,6 @@ func FloorReached(floor int,  values CurrentElevValues, queues OrderQueueChannel
 					
 		case RUN_DOWN:
 			if CheckIfFloorInQueue(floor, values.Direction, queues){ 
-
 				<-values.State; values.State <- DOOR_OPEN;
 				output.Timer <- true;
 				output.Button <- ButtonLamp {floor, 2, 0};

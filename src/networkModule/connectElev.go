@@ -6,8 +6,6 @@ import (
     	"time"
 	)
 
-// Den nyoppstartede heisen får MasterQueue fra Master, og gjør seg selv til Master, Backup eller ingen av delene. Man blir ikke selv lagt til i MasterQueue enda
-
 func initializeElevatorConnection(myIp string,masterQueueChan chan []IpObject, becomeMasterChan chan int,becomeBackupChan chan int) {
 	isEmpty := setMasterQueue(PORT_MASTER_DATA,masterQueueChan)
 	if isEmpty{
@@ -34,9 +32,8 @@ func getIpAddr() string {
 	} 	
 	return ipString
 }
-
 	
-func setMasterQueue(PORT_MASTER_DATA string,masterQueueChan chan []IpObject ) bool{	// må endre navna på portNumber osv i funksjonene nedover
+func setMasterQueue(PORT_MASTER_DATA string,masterQueueChan chan []IpObject ) bool{	
 	bufferToRead := make([] byte, 1024)
 	UDPadr,_:= net.ResolveUDPAddr("udp",""+":"+PORT_MASTER_DATA)
     readerSocket ,_ := net.ListenUDP("udp",UDPadr)
@@ -53,15 +50,8 @@ func setMasterQueue(PORT_MASTER_DATA string,masterQueueChan chan []IpObject ) bo
         <- masterQueueChan
        	masterQueue := structObject.MasterQueue
        	masterQueueChan <- masterQueue
-       	return false
-       		 
+       	return false       		 
    }
    readerSocket.Close()
   	return true
 }
-
-
-
-
-
-
