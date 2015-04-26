@@ -9,17 +9,13 @@ import (
    )
 
 
-
-
 type OrderData struct {
 	FromMaster bool
 	Type MessageType
 	Order ButtonOrder
 	Cost int 
 	Ip string
-	Deadline int64
-	
-
+	Deadline int64	
 }
 
 type MessageType int 
@@ -36,37 +32,27 @@ type ButtonOrder struct {
 }
 
 
-
-// Trenger funksjonalitet til: Hvis ikke bestillingen mottas av Master må den tas selv
-// Diskuter deadlocks knyttet til unfinishedOrdersLock
-//Diskuter kommentar linje 147 runElevator
-
 const IP_BROADCAST = "129.241.187.255"
 const BROADCAST_PORT = "31012"
 const SLAVE_TO_MASTER_PORT = "31015"
 const MASTER_TO_SLAVE_PORT = "31014"
 const COST_CEILING = 100 
-var unfinishedOrders = [] OrderData{}
-var recievedMessageToMaster = make(chan OrderData, 1024)
-var recievedMessage = make (chan OrderData,1024)
-var AuctionResultChan = make(chan OrderData,1)
-var recievedCostChan = make(chan OrderData,1024)
-var recievedOrderChan =make(chan OrderData,1024)  
-var recievedOrderComplete = make(chan OrderData, 1024) 
-var auctionLock = make(chan int, 1)
-//var unfinishedOrdersLock = make(chan int, 1)
-func handleOrdersInNetwork(){
+
+func handleOrdersInNetwork(isMasterChan chan bool, masterQueueChan chan []IpObject, unfinishedOrdersChan chan []OrderData, recievedMessage chan OrderData, recievedMessageToMaster chan OrderData, recievedOrderChan chan OrderData){
 	unactiveElevatorChan := make(chan string, 1)
+	recievedCostChan := make(chan OrderData,1024)  
+	recievedOrderComplete := make(chan OrderData, 1024) 
+	auctionLock := make(chan int, 1)
 	select{
 		//case unfinishedOrdersLock <-1:
 		case auctionLock <- 1:
 		case <-time.After(100 * time.Millisecond):
 	}
-
-	
-	go checkOrderDeadline(unactiveElevatorChan)
-	go readOrderData(SLAVE_TO_MASTER_PORT)
+	go checkOrderDeadline(unactiveElevatorChan, isMasterChan, unfinishedOrdersChan, recievedOrderChan)
+	go readOrderData(SLAVE_TO_MASTER_PORT, isMasterChan,recievedMessageToMaster,recievedMessage)
+	isMaster := false
 	for {
+		isMaster = <- isMasterChan; isMasterChan <- isMaster
 		if !isMaster{break}
 		select{
 		case recievedData := <- recievedMessageToMaster:
@@ -80,27 +66,24 @@ func handleOrdersInNetwork(){
 					recievedOrderComplete <- recievedData
 			}
 		case order := <- recievedOrderChan:
-			if !isInQueue(order){
+			if !isInQueue(order,unfinishedOrdersChan){
 				fmt.Println("RecievedOrderChan er nå blitt lest ", order)
-				go auction(order, unactiveElevatorChan) 
+				go auction(order, unactiveElevatorChan,masterQueueChan,unfinishedOrdersChan,recievedCostChan, auctionLock) 
 
 			}
-			// Sjekk om finnes i liste. Legg til hvis ikke
 		case orderComplete := <- recievedOrderComplete:
-			//<- unfinishedOrdersLock
 			orderComplete.FromMaster = true 
-			removeOrder(orderComplete)
+			removeOrder(orderComplete,unfinishedOrdersChan)
 			sendOrderData(IP_BROADCAST,MASTER_TO_SLAVE_PORT,orderComplete)
-			//unfinishedOrdersLock <- 1 
 		}
 		
 	}
 
 }
 
-func auction(newOrderData OrderData, unactiveElevatorChan chan string){
+func auction(newOrderData OrderData, unactiveElevatorChan chan string,masterQueueChan chan []IpObject, unfinishedOrdersChan chan [] OrderData, recievedCostChan chan OrderData, auctionLock chan int){
 	<- auctionLock
-	if !isInQueue(newOrderData){
+	if !isInQueue(newOrderData, unfinishedOrdersChan){
 		fmt.Println("AUCTION I GANG")
 		deadline := time.Now().UnixNano() / int64(time.Millisecond) + 800
 		elevatorsInAuction := [] OrderData {} 
@@ -124,9 +107,9 @@ func auction(newOrderData OrderData, unactiveElevatorChan chan string){
 				}
 			}
 			timeNow := time.Now().UnixNano() / int64(time.Millisecond)
+			masterQueue := <- masterQueueChan; masterQueueChan <- masterQueue
 			if len(elevatorsInAuction) == len(masterQueue) || timeNow > deadline  {
-
-
+				fmt.Println("Timeout")
 				break
 			}
 		}
@@ -136,7 +119,7 @@ func auction(newOrderData OrderData, unactiveElevatorChan chan string){
 			case <-time.After(50 * time.Millisecond):
 				
 		}
-
+		
 		lowestCost := COST_CEILING
 		elevatorWithLowestCost := OrderData {}
 		elevatorWithLowestCost.Cost = COST_CEILING
@@ -149,12 +132,9 @@ func auction(newOrderData OrderData, unactiveElevatorChan chan string){
 				elevatorWithLowestCost = element
 			}
 			fmt.Println("COSTSJEKKEN på følgende element: ", element)
-		
 		}
-		//<- unfinishedOrdersLock 
 		fmt.Println("LOwEST COST ER NÅ FUNNET TIL Å VÆRE: ", lowestCost)
-		addNewOrder(elevatorWithLowestCost)
-		//unfinishedOrdersLock <- 1
+		addNewOrder(elevatorWithLowestCost,unfinishedOrdersChan)
 		elevatorWithLowestCost.Type = ORDER
 		elevatorWithLowestCost.FromMaster = true
 		fmt.Println("ELEVATOR WITH LOWEST COST SIN IP ER FØLGENDE: ", elevatorWithLowestCost.Ip)
@@ -163,24 +143,23 @@ func auction(newOrderData OrderData, unactiveElevatorChan chan string){
 	auctionLock <- 1	
 }
 
-func handleOrdersFromMaster(Order_data_from_master_chan chan OrderData){
-	go readOrderData(MASTER_TO_SLAVE_PORT)
-	go readOrderData(BROADCAST_PORT)
+func handleOrdersFromMaster(orderDataFromMasterChan chan OrderData, isMasterChan chan bool,recievedMessage chan OrderData, recievedMessageToMaster chan OrderData,myIp string){
+	go readOrderData(MASTER_TO_SLAVE_PORT,isMasterChan,recievedMessageToMaster,recievedMessage)	
+	go readOrderData(BROADCAST_PORT,isMasterChan,recievedMessageToMaster,recievedMessage)
 	for {
 		select{
 		case recievedData := <- recievedMessage:
-			Order_data_from_master_chan <-recievedData
+			orderDataFromMasterChan <-recievedData
 		default:
 			time.Sleep(5 * time.Millisecond)
-
 		}
 			
 	}	
 }
 
-func isInQueue(newOrderData OrderData) bool {
+func isInQueue(newOrderData OrderData,unfinishedOrdersChan chan []OrderData) bool {
 	newOrder := newOrderData.Order
-	//<- unfinishedOrdersLock
+	unfinishedOrders := <- unfinishedOrdersChan
 	allreadyInList := false
 	for _,element:= range unfinishedOrders{
 		if element.Order == newOrder{			
@@ -188,63 +167,48 @@ func isInQueue(newOrderData OrderData) bool {
 			break
 		}
 	}
-	//unfinishedOrdersLock <- 1
+	unfinishedOrdersChan <- unfinishedOrders 
 	return allreadyInList
 
 }
-//Funksjoner master bruker	
-func addNewOrder(newOrderData OrderData){ 
-	deadline := time.Now().UnixNano()/int64(time.Millisecond) + 20000
-	allreadyInList := isInQueue (newOrderData)
+
+func addNewOrder(newOrderData OrderData, unfinishedOrdersChan chan []OrderData){
+	deadline := time.Now().UnixNano()/int64(time.Millisecond) + 30000
+	allreadyInList := isInQueue (newOrderData,unfinishedOrdersChan)
+	unfinishedOrders := <- unfinishedOrdersChan
 	if !allreadyInList {
 		newOrderData.Deadline = deadline
 		unfinishedOrders = append(unfinishedOrders,newOrderData)
 	}
+	unfinishedOrdersChan <- unfinishedOrders
 }
 
-
-func removeOrder(orderComplete OrderData){
+func removeOrder(orderComplete OrderData,unfinishedOrdersChan chan []OrderData){
 	order2Remove := orderComplete.Order
+	unfinishedOrders := <- unfinishedOrdersChan
 	fmt.Println("UNFINISHED ORDERS LISTEN: ", unfinishedOrders)
 	for i,element:= range unfinishedOrders{
 		if element.Order == order2Remove{
+			fmt.Println("fjerner nå følgende order:",order2Remove)
 			n := len (unfinishedOrders)			
 			newUnfinishedOrders :=unfinishedOrders[0:i]
 			newUnfinishedOrders = append(newUnfinishedOrders,unfinishedOrders[i+1:n]...)
 			unfinishedOrders = newUnfinishedOrders
+			fmt.Println("nå er unfinishedOrders endret til",unfinishedOrders)
 			break
 		}
 	}
+	unfinishedOrdersChan <- unfinishedOrders 
 }
 
-// Lag funksjonalitet for døde heiser, hvordan dens bestillinger skal fordeles osv.
-
-
-//Funksjoner som alle bruker
-func readOrderData(port string){
-	fmt.Println("READ ORDER DATA ER KJØRT SOM GO ROUTINE " , isMaster)
-	fmt.Println(port)
-	fmt.Println(port == SLAVE_TO_MASTER_PORT && isMaster)
-
+func readOrderData(port string, isMasterChan chan bool,recievedMessageToMaster chan OrderData, recievedMessage chan OrderData){
+	fmt.Println("READ ORDER DATA ER KJØRT SOM GO ROUTINE")
 	bufferToRead := make([] byte, 1024)
-	
-	UDPadr, err:= net.ResolveUDPAddr("udp",""+":"+port)
-	
-	if err != nil {
-        fmt.Println("error resolving UDP address on ", port)
-        fmt.Println(err)
-        os.Exit(1)
-    }
-    
-    readerSocket ,err := net.ListenUDP("udp",UDPadr)
-    
-    if err != nil {
-        fmt.Println("error listening on UDP port ", port)
-        fmt.Println(err)
-        os.Exit(1)
-	}
+	UDPadr,_:= net.ResolveUDPAddr("udp",""+":"+port)
+    readerSocket,_ := net.ListenUDP("udp",UDPadr)
+    isMaster := false
 	for {
-
+		isMaster = <- isMasterChan; isMasterChan <- isMaster
 		if (port == SLAVE_TO_MASTER_PORT && !isMaster){break}
 		deadline := time.Now().Add(100*time.Millisecond)
 		readerSocket.SetReadDeadline(deadline)
@@ -266,23 +230,16 @@ func readOrderData(port string){
    	fmt.Println("LUkker readerSocket i readOrderData")
    	readerSocket.Close()
 }
-	//Hvis til Master legges det på masterkanalen, hvis ikke på den andre kanalen
-
-
+	
 func sendOrderData(ip string, port string, message OrderData){	//Denne brukes både til å sende enkle meldinger, men også broadcasting
 	fmt.Println("SENDER ER SATT I GANG, FÅ GANG OG MOTTA! ", ip, " ", port, " ", message)
-	udpAddr, err := net.ResolveUDPAddr("udp",ip+":"+port)
+	udpAddr,err := net.ResolveUDPAddr("udp",ip+":"+port)
 	if err != nil {
 		fmt.Println("error resolving UDP address on ", port)
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	broadcastSocket, err := net.DialUDP("udp",nil, udpAddr)
-	if err != nil {
-		    fmt.Println("error listening on UDP port ", port)
-		    fmt.Println(err)
-		    os.Exit(1)
-	}
+	broadcastSocket,_ := net.DialUDP("udp",nil, udpAddr)	
 	deadline := time.Now().UnixNano() / int64(time.Millisecond) + 3
 	for {
 		timeNow := time.Now().UnixNano() / int64(time.Millisecond)
@@ -294,25 +251,22 @@ func sendOrderData(ip string, port string, message OrderData){	//Denne brukes b�
 		broadcastSocket.Write(jsonFile)
 		time.Sleep(1 * time.Millisecond)	
 
-	}
-	// Vi må sende flere ganger og hvis en bestilling ikke mottas av master skal heisen ta den selv.
-	
+	}		
 }
 
-func sendOrderDataToMaster(Order_data_to_master_chan chan OrderData){
+func sendOrderDataToMaster(orderDataToMasterChan chan OrderData, myIp string, masterQueueChan chan []IpObject){
 	for {
 		select {
-		case sendingObject := <- Order_data_to_master_chan:
+		case sendingObject := <- orderDataToMasterChan:
 			fmt.Println("Inne i send Order to Master")
 			sendingObject.Ip = myIp
-			<- masterQueueLock 
+			masterQueue:= <- masterQueueChan ; masterQueueChan <- masterQueue
 			if len(masterQueue)>0 {
 				ip_master := masterQueue[0].Ip
 				
 				sendOrderData(ip_master,SLAVE_TO_MASTER_PORT,sendingObject)
 				fmt.Println("Sendt order data to master")
 			}
-			masterQueueLock <-1
 		default:
 			time.Sleep(5 * time.Millisecond)
 
@@ -321,15 +275,17 @@ func sendOrderDataToMaster(Order_data_to_master_chan chan OrderData){
 	}
 }
 
-func checkOrderDeadline(unactiveElevatorChan chan string){
-	//unifinisheOrdersLock
+func checkOrderDeadline(unactiveElevatorChan chan string, isMasterChan chan bool, unfinishedOrdersChan chan []OrderData, recievedOrderChan chan OrderData){
+	isMaster := false
 	for {
+		unfinishedOrders := <- unfinishedOrdersChan; unfinishedOrdersChan <- unfinishedOrders
+		isMaster = <- isMasterChan; isMasterChan <- isMaster
 		for _,element := range unfinishedOrders{
 			if !isMaster{break}
 			if element.Deadline < time.Now().UnixNano()/int64(time.Millisecond) {
-				fmt.Println("dett er forbiddenFruit")
+				fmt.Println("dett er forbiddenFruit. Deadline er ute. Det skjedde på følgende element",element,"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 				unactiveElevatorChan <- element.Ip
-				removeOrder(element)
+				removeOrder(element,unfinishedOrdersChan)
 				recievedOrderChan <- element
 			}
 		}
@@ -337,4 +293,13 @@ func checkOrderDeadline(unactiveElevatorChan chan string){
 	}
 }
 
-//Spør om lys skal lyse i alle på alle heispaneler hvis man bestemmer for eksempel ned fra 2. etasje?
+func allocateElevatorOrders(deadElevator IpObject,unfinishedOrdersChan chan []OrderData, recievedOrderChan chan OrderData ){   // Dette må vi diskutere
+	unfinishedOrders :=  <- unfinishedOrdersChan ; unfinishedOrdersChan <- unfinishedOrders
+	for _,element := range unfinishedOrders{
+		if element.Ip == deadElevator.Ip {
+			element.Type = ORDER
+			removeOrder(element, unfinishedOrdersChan)
+			recievedOrderChan <- element
+		}
+	}	
+}
